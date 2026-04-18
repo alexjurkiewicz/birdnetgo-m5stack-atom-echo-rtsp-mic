@@ -1057,7 +1057,7 @@ void setup_i2s_driver() {
 static bool writeAll(WiFiClient &client, const uint8_t* data, size_t len) {
     size_t off = 0;
     unsigned long startTime = millis();
-    const unsigned long WRITE_TIMEOUT_MS = 50;  // 50ms timeout - balance between responsiveness and stability
+    const unsigned long WRITE_TIMEOUT_MS = 200;  // Core 0 can afford longer timeout — Core 1 is never blocked by WiFi
 
     while (off < len) {
         // Check timeout to prevent blocking Core 1
@@ -1078,9 +1078,6 @@ static const uint32_t MAX_WRITE_FAILURES = 100;  // Allow ~5s of failures before
 
 void sendRTPPacket(WiFiClient &client, int16_t* audioData, int numSamples) {
     if (!client.connected()) {
-        // Client disconnected — Core 1 owns the socket, close it
-        client.stop();
-        streamClient = NULL;
         isStreaming = false;
         core1OwnsLED = false;
         return;
@@ -1122,6 +1119,13 @@ void sendRTPPacket(WiFiClient &client, int16_t* audioData, int numSamples) {
                    writeAll(client, header, sizeof(header)) &&
                    writeAll(client, (uint8_t*)audioData, payloadSize);
 
+    // Restore host byte order so pool frames are clean when returned to audioFreePool
+    for (int i = 0; i < numSamples; ++i) {
+        uint16_t s = (uint16_t)audioData[i];
+        s = (uint16_t)((s << 8) | (s >> 8));
+        audioData[i] = (int16_t)s;
+    }
+
     if (success) {
         rtpSequence++;
         rtpTimestamp += (uint32_t)numSamples;
@@ -1132,11 +1136,8 @@ void sendRTPPacket(WiFiClient &client, int16_t* audioData, int numSamples) {
         consecutiveWriteFailures++;
 
         if (consecutiveWriteFailures >= MAX_WRITE_FAILURES) {
-            // Sustained failure — Core 1 owns the socket, close it
-            Serial.printf("[Core1] %u consecutive write failures, disconnecting\n", consecutiveWriteFailures);
+            Serial.printf("[Core0] %u consecutive write failures, disconnecting\n", consecutiveWriteFailures);
             consecutiveWriteFailures = 0;
-            client.stop();
-            streamClient = NULL;
             isStreaming = false;
             core1OwnsLED = false;
         }
@@ -1451,11 +1452,35 @@ void setup() {
     simplePrintln("Web UI: http://" + WiFi.localIP().toString() + "/");
 }
 
+// Dequeue one audio frame from Core 1, send as RTP, return frame to pool.
+// Called from Core 0 loop() only — Core 0 owns rtspClient exclusively.
+static void sendFrameRTP() {
+    AudioFrame* frame = NULL;
+    if (xQueueReceive(audioReadyQueue, &frame, 0) != pdTRUE) return;
+
+    if (isStreaming && rtspClient && rtspClient.connected()) {
+        sendRTPPacket(rtspClient, frame->data, frame->samples);
+    } else {
+        audioPacketsDropped++;
+    }
+
+    xQueueSend(audioFreePool, &frame, 0);
+}
+
 void loop() {
     // Update M5Atom (for button and LED handling)
     M5.update();
 
     webui_handleClient();
+
+    // Drain audio frames from Core 1 and send via WiFi (Core 0 owns socket)
+    {
+        int drained = 0;
+        while (uxQueueMessagesWaiting(audioReadyQueue) > 0 && drained < AUDIO_POOL_DEPTH) {
+            sendFrameRTP();
+            drained++;
+        }
+    }
 
     if (millis() - lastTempCheck > 60000) { // 1 min
         checkTemperature();
