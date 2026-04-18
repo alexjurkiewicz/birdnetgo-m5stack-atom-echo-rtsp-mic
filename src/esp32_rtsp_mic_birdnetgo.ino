@@ -1439,7 +1439,7 @@ void setup() {
     if (!overheatLatched) {
         simplePrintln("RTSP server ready on port 8554");
         simplePrintln("RTSP URL: rtsp://" + WiFi.localIP().toString() + ":8554/audio");
-        simplePrintln("RTSP URL: rtsp://atomecho.local:8554/audio");
+        simplePrintln("RTSP URL: rtsp://" + mdnsHostname + ".local:8554/audio");
         // Set LED to blue when ready (green reserved for level indicator)
         if (ledMode > 0) M5.dis.drawpix(0, CRGB(0, 0, 128));
         else M5.dis.drawpix(0, CRGB(0, 0, 0));

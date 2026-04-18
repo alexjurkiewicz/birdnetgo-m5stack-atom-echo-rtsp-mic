@@ -160,10 +160,10 @@ static String htmlIndex() {
         "<div id='ovr' class='overlay'><div class='box' id='ovr_msg'>Restarting…</div></div>"
         "<div class='page'>"
         "<div class='card'><div class='hero'><div><div class='brand'><div class='title' id='t_title'>M5Stack Atom Echo</div><span class='badge' id='fwv'></span></div><div class='subtitle'>URL: <a id='rtsp' class='mono' href='rtsp://");
-    h += ip;
+    h += mdnsHostname + ".local";
     h += F(
         ":8554/audio' target='_blank'>rtsp://");
-    h += ip;
+    h += mdnsHostname + ".local";
     h += F(
         ":8554/audio</a></div></div>"
         "<div class='lang'><a href='https://github.com/stedrow/birdnetgo-m5stack-atom-echo-rtsp-mic' target='_blank' class='gh'>GitHub</a>Lang: <select id='langSel'><option value='en'>English</option><option value='cs'>Čeština</option></select></div></div></div>"
