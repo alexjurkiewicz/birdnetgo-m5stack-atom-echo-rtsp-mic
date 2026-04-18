@@ -488,6 +488,7 @@ void loadAudioSettings() {
     currentSampleRate = audioPrefs.getUInt("sampleRate", DEFAULT_SAMPLE_RATE);
     currentGainFactor = audioPrefs.getFloat("gainFactor", DEFAULT_GAIN_FACTOR);
     currentBufferSize = audioPrefs.getUShort("bufferSize", DEFAULT_BUFFER_SIZE);
+    if (currentBufferSize > DEFAULT_BUFFER_SIZE) currentBufferSize = DEFAULT_BUFFER_SIZE;
     // i2sShiftBits is ALWAYS 0 for PDM microphones - not configurable
     i2sShiftBits = 0;
     autoRecoveryEnabled = audioPrefs.getBool("autoRecovery", false);
@@ -1338,6 +1339,10 @@ void setup() {
     // Initialise inter-core audio queues and free pool
     audioReadyQueue = xQueueCreate(AUDIO_POOL_DEPTH, sizeof(AudioFrame*));
     audioFreePool   = xQueueCreate(AUDIO_POOL_DEPTH, sizeof(AudioFrame*));
+    if (!audioReadyQueue || !audioFreePool) {
+        Serial.println("FATAL: audio queue allocation failed");
+        while (true) { delay(1000); }
+    }
     for (int i = 0; i < AUDIO_POOL_DEPTH; i++) {
         audioFramePool[i].data    = audioFrameStorage[i];
         audioFramePool[i].samples = 0;
