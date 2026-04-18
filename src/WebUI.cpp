@@ -133,10 +133,10 @@ static void apiSendJSON(const String &json) {
 }
 
 // HTML UI
-static String htmlIndex() {
-    String ip = WiFi.localIP().toString();
-    String h;
-    h += F(
+static void httpIndex() {
+    web.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    web.send(200, "text/html; charset=utf-8", "");
+    web.sendContent_P(PSTR(
         "<!doctype html><html><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<title>M5Stack Atom Echo - RTSP Microphone</title>"
@@ -162,12 +162,12 @@ static String htmlIndex() {
         "</style></head><body>"
         "<div id='ovr' class='overlay'><div class='box' id='ovr_msg'>Restarting…</div></div>"
         "<div class='page'>"
-        "<div class='card'><div class='hero'><div><div class='brand'><div class='title' id='t_title'>M5Stack Atom Echo</div><span class='badge' id='fwv'></span></div><div class='subtitle'>URL: <a id='rtsp' class='mono' href='rtsp://");
-    h += mdnsHostname + ".local";
-    h += F(
-        ":8554/audio' target='_blank'>rtsp://");
-    h += mdnsHostname + ".local";
-    h += F(
+        "<div class='card'><div class='hero'><div><div class='brand'><div class='title' id='t_title'>M5Stack Atom Echo</div><span class='badge' id='fwv'></span></div><div class='subtitle'>URL: <a id='rtsp' class='mono' href='rtsp://"));
+    web.sendContent(mdnsHostname + ".local");
+    web.sendContent_P(PSTR(
+        ":8554/audio' target='_blank'>rtsp://"));
+    web.sendContent(mdnsHostname + ".local");
+    web.sendContent_P(PSTR(
         ":8554/audio</a></div></div>"
         "<div class='lang'><a href='https://github.com/stedrow/birdnetgo-m5stack-atom-echo-rtsp-mic' target='_blank' class='gh'>GitHub</a>Lang: <select id='langSel'><option value='en'>English</option><option value='cs'>Čeština</option></select></div></div></div>"
         "<div class='row'>"
@@ -307,12 +307,11 @@ static String htmlIndex() {
         "const H=(hid,rid)=>{const h=$(hid), r=$(rid); if(h&&r){ h.onclick=()=>{ r.style.display = (r.style.display==='none'||!r.style.display)?'block':'none'; }; }};"
 "H('h_dcb','row_dcb_hint'); H('h_led','row_led_hint'); H('h_rate','row_rate_hint'); H('h_gain','row_gain_hint'); H('h_hpf','row_hpf_hint'); H('h_hpf_cut','row_hpf_cut_hint'); H('h_agc','row_agc_hint'); H('h_buf','row_buf_hint'); H('h_auto','row_auto_hint'); H('h_thr','row_thr_hint'); H('h_thr_mode','row_thrmode_hint'); H('h_chk','row_chk_hint'); H('h_sched','row_sched_hint'); H('h_hours','row_hours_hint'); H('h_tx','row_tx_hint'); H('h_shift','row_shift_hint'); H('h_cpu','row_cpu_hint'); H('h_level','row_level_hint'); H('h_therm_protect','row_therm_hint_protect'); H('h_therm_limit','row_therm_hint_limit');"
         "loadAll();"
-        "</script></body></html>");
-    return h;
+        "</script></body></html>"));
+    web.sendContent("", 0);
 }
 
 // HTTP handlery
-static void httpIndex() { web.send(200, "text/html; charset=utf-8", htmlIndex()); }
 
 static void httpStatus() {
     unsigned long uptimeSeconds = (millis() - bootTime) / 1000;
