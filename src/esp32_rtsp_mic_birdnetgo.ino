@@ -8,8 +8,8 @@
 #include "WebUI.h"
 
 // ================== DUAL-CORE AUDIO ARCHITECTURE ==================
-// Core 1: Complete audio pipeline (I2S → process → RTP → WiFi)
-// Core 0: Web UI, diagnostics, RTSP protocol, client management
+// Core 1: Audio pipeline (I2S capture → process → enqueue AudioFrame)
+// Core 0: RTP send, Web UI, diagnostics, RTSP protocol, client management
 // PDM microphone outputs 16-bit samples directly
 
 TaskHandle_t audioCaptureTaskHandle = NULL;
@@ -1510,7 +1510,7 @@ void loop() {
     if (rtspServerEnabled) {
         // Phase: detect disconnect (Core 1 cleared isStreaming after self-disconnect)
         if (wasStreaming && !isStreaming) {
-            // Core 1 already closed the socket — just update LED and log
+            // Core 0 detected client disconnect — socket already stopped, update LED and log
             if (!core1OwnsLED) {
                 if (ledMode > 0) M5.dis.drawpix(0, CRGB(0, 0, 128));
                 else M5.dis.drawpix(0, CRGB(0, 0, 0));
