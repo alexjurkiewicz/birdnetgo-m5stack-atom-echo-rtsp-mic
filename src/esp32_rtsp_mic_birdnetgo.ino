@@ -201,6 +201,9 @@ uint8_t cpuFrequencyMhz = 160;          // CPU frequency (default 160 MHz — su
 // -- WiFi TX power (configurable)
 float wifiTxPowerDbm = DEFAULT_WIFI_TX_DBM;
 wifi_power_t currentWifiPowerLevel = WIFI_POWER_19_5dBm;
+bool wifiTxAutoEnabled = true;
+uint8_t wifiAutoStepDownConfirm = 0;
+unsigned long lastWifiAutoAdjust = 0;
 
 // -- RTSP connect/PLAY statistics
 unsigned long lastRtspClientConnectMs = 0;
@@ -243,6 +246,35 @@ static wifi_power_t pickWifiPowerLevel(float dbm) {
     if (dbm <= 18.5f) return WIFI_POWER_18_5dBm;
     if (dbm <= 19.0f) return WIFI_POWER_19dBm;
     return WIFI_POWER_19_5dBm;
+}
+
+static const wifi_power_t wifiPowerLevels[] = {
+    WIFI_POWER_MINUS_1dBm, WIFI_POWER_2dBm, WIFI_POWER_5dBm,
+    WIFI_POWER_7dBm, WIFI_POWER_8_5dBm, WIFI_POWER_11dBm,
+    WIFI_POWER_13dBm, WIFI_POWER_15dBm, WIFI_POWER_17dBm,
+    WIFI_POWER_18_5dBm, WIFI_POWER_19dBm, WIFI_POWER_19_5dBm
+};
+static const int wifiPowerLevelsCount = 12;
+
+static wifi_power_t stepWifiPowerUp(wifi_power_t cur) {
+    for (int i = 0; i < wifiPowerLevelsCount - 1; i++) {
+        if (wifiPowerLevels[i] == cur) return wifiPowerLevels[i + 1];
+    }
+    return WIFI_POWER_19_5dBm;
+}
+
+static wifi_power_t stepWifiPowerDown(wifi_power_t cur) {
+    for (int i = wifiPowerLevelsCount - 1; i > 0; i--) {
+        if (wifiPowerLevels[i] == cur) return wifiPowerLevels[i - 1];
+    }
+    return cur;  // unknown level — do not change
+}
+
+void resetWifiAutoState() {
+    wifiAutoStepDownConfirm = 0;
+    lastWifiAutoAdjust = millis();
+    currentWifiPowerLevel = WIFI_POWER_19_5dBm;
+    WiFi.setTxPower(WIFI_POWER_19_5dBm);
 }
 
 // Apply WiFi TX power
@@ -458,13 +490,27 @@ void checkWiFiHealth() {
             stopAudioCaptureTask();
         }
         simplePrintln("WiFi disconnected! Reconnecting...");
+        resetWifiAutoState();
         WiFi.reconnect();
     }
 
-    // Re-apply TX power WITHOUT logging (prevent periodic log spam)
-    applyWifiTxPower(false);
-
     int32_t rssi = WiFi.RSSI();
+
+    if (wifiTxAutoEnabled) {
+        if (rssi < 0 && rssi < -65) {
+            wifi_power_t newLevel = stepWifiPowerUp(currentWifiPowerLevel);
+            if (newLevel != currentWifiPowerLevel) {
+                WiFi.setTxPower(newLevel);
+                currentWifiPowerLevel = newLevel;
+                wifiAutoStepDownConfirm = 0;
+                lastWifiAutoAdjust = millis();
+                simplePrintln("WiFi auto TX up: " + String(wifiPowerLevelToDbm(newLevel), 1) + " dBm (RSSI " + String(rssi) + " dBm)");
+            }
+        }
+    } else {
+        applyWifiTxPower(false);
+    }
+
     if (rssi < -85) {
         simplePrintln("WARNING: Weak WiFi signal: " + String(rssi) + " dBm");
     }
@@ -499,6 +545,7 @@ void loadAudioSettings() {
     autoThresholdEnabled = audioPrefs.getBool("thrAuto", true);
     cpuFrequencyMhz = audioPrefs.getUChar("cpuFreq", 160);
     wifiTxPowerDbm = audioPrefs.getFloat("wifiTxDbm", DEFAULT_WIFI_TX_DBM);
+    wifiTxAutoEnabled = audioPrefs.getBool("wifiTxAuto", true);
     dcBlockerEnabled = audioPrefs.getBool("dcBlock", true);
     highpassEnabled = audioPrefs.getBool("hpEnable", DEFAULT_HPF_ENABLED);
     highpassCutoffHz = (uint16_t)audioPrefs.getUInt("hpCutoff", DEFAULT_HPF_CUTOFF_HZ);
@@ -551,6 +598,7 @@ void saveAudioSettings() {
     audioPrefs.putBool("thrAuto", autoThresholdEnabled);
     audioPrefs.putUChar("cpuFreq", cpuFrequencyMhz);
     audioPrefs.putFloat("wifiTxDbm", wifiTxPowerDbm);
+    audioPrefs.putBool("wifiTxAuto", wifiTxAutoEnabled);
     audioPrefs.putBool("dcBlock", dcBlockerEnabled);
     audioPrefs.putBool("hpEnable", highpassEnabled);
     audioPrefs.putUInt("hpCutoff", (uint32_t)highpassCutoffHz);
@@ -609,6 +657,7 @@ void resetToDefaultSettings() {
     performanceCheckInterval = 15;
     cpuFrequencyMhz = 160;
     wifiTxPowerDbm = DEFAULT_WIFI_TX_DBM;
+    wifiTxAutoEnabled = true;
     dcBlockerEnabled = true;
     highpassEnabled = DEFAULT_HPF_ENABLED;
     highpassCutoffHz = DEFAULT_HPF_CUTOFF_HZ;
@@ -1390,8 +1439,13 @@ void setup() {
         Serial.println(" failed (will use uptime)");
     }
 
-    // Apply configured WiFi TX power after connect (logs once on change)
-    applyWifiTxPower(true);
+    // Apply initial WiFi TX power after connect
+    if (wifiTxAutoEnabled) {
+        resetWifiAutoState();
+        simplePrintln("WiFi TX power: auto mode, starting at 19.5 dBm");
+    } else {
+        applyWifiTxPower(true);
+    }
 
     if (MDNS.begin(mdnsHostname.c_str())) {
         MDNS.addService("rtsp", "tcp", 8554);
@@ -1519,6 +1573,27 @@ void loop() {
     if (millis() - lastWiFiCheck > 30000) { // 30 s
         checkWiFiHealth(); // without TX power log spam
         lastWiFiCheck = millis();
+    }
+
+    if (wifiTxAutoEnabled && millis() - lastWifiAutoAdjust > 180000) { // 3 min
+        int32_t rssi = WiFi.RSSI();
+        if (rssi < 0) {
+            if (rssi > -50) {
+                wifiAutoStepDownConfirm++;
+                if (wifiAutoStepDownConfirm >= 2) {
+                    wifi_power_t newLevel = stepWifiPowerDown(currentWifiPowerLevel);
+                    if (newLevel != currentWifiPowerLevel) {
+                        WiFi.setTxPower(newLevel);
+                        currentWifiPowerLevel = newLevel;
+                        simplePrintln("WiFi auto TX down: " + String(wifiPowerLevelToDbm(newLevel), 1) + " dBm (RSSI " + String(rssi) + " dBm)");
+                    }
+                    wifiAutoStepDownConfirm = 0;
+                }
+            } else {
+                wifiAutoStepDownConfirm = 0;
+            }
+        }
+        lastWifiAutoAdjust = millis();
     }
 
     checkScheduledReset();
