@@ -751,28 +751,20 @@ void audioCaptureTask(void* parameter) {
     while (audioTaskRunning) {
         // Check if Core 0 requested us to stop streaming
         if (stopStreamRequested) {
-            WiFiClient* client = streamClient;
-            if (client) {
-                client->stop();
-            }
-            streamClient = NULL;
             isStreaming = false;
             core1OwnsLED = false;
             streamCleanupDone = true;
             __asm__ __volatile__("memw" ::: "memory");
-            // Wait for Core 0 to clear stopStreamRequested
             while (stopStreamRequested && audioTaskRunning) {
                 vTaskDelay(pdMS_TO_TICKS(10));
             }
             continue;
         }
 
-        if (!isStreaming || !streamClient) {
+        if (!isStreaming) {
             vTaskDelay(pdMS_TO_TICKS(10));
             continue;
         }
-
-        WiFiClient* client = streamClient;
 
         // Periodic stats (every 30s) — Serial.printf only, no heap alloc
         if (millis() - lastStatsLog > 30000) {
@@ -907,51 +899,26 @@ void audioCaptureTask(void* parameter) {
             lastLedUpdate = millis();
         }
 
-        // Send RTP packet
-        sendRTPPacket(*client, outputBuffer, samplesRead);
-        packetCount++;
-
-        // Process incoming RTSP commands during streaming (~every 200ms)
-        // Keeps all socket I/O on Core 1 during streaming
-        static unsigned long lastRtspCheck = 0;
-        if (client && isStreaming && (millis() - lastRtspCheck > 200)) {
-            lastRtspCheck = millis();
-            if (client->available() > 0) {
-                char rtspBuf[512];
-                int avail = client->available();
-                if (avail > (int)sizeof(rtspBuf) - 1) avail = sizeof(rtspBuf) - 1;
-                int n = client->read((uint8_t*)rtspBuf, avail);
-                if (n > 0) {
-                    rtspBuf[n] = '\0';
-                    // Parse for RTSP commands
-                    if (strstr(rtspBuf, "TEARDOWN") != NULL) {
-                        // Extract CSeq
-                        const char* cseqStr = strstr(rtspBuf, "CSeq: ");
-                        int cseqVal = 1;
-                        if (cseqStr) cseqVal = atoi(cseqStr + 6);
-                        // Send response (Core 1 owns the socket)
-                        char resp[128];
-                        int rlen = snprintf(resp, sizeof(resp),
-                            "RTSP/1.0 200 OK\r\nCSeq: %d\r\n\r\n", cseqVal);
-                        client->write((uint8_t*)resp, rlen);
-                        // Close and clean up
-                        client->stop();
-                        streamClient = NULL;
-                        isStreaming = false;
-                        core1OwnsLED = false;
-                        Serial.println("[Core1] TEARDOWN received, stream stopped");
-                    } else if (strstr(rtspBuf, "GET_PARAMETER") != NULL) {
-                        const char* cseqStr = strstr(rtspBuf, "CSeq: ");
-                        int cseqVal = 1;
-                        if (cseqStr) cseqVal = atoi(cseqStr + 6);
-                        char resp[128];
-                        int rlen = snprintf(resp, sizeof(resp),
-                            "RTSP/1.0 200 OK\r\nCSeq: %d\r\n\r\n", cseqVal);
-                        client->write((uint8_t*)resp, rlen);
-                        lastRTSPActivity = millis();
-                    }
-                    // Other commands silently discarded
+        // Enqueue processed frame for Core 0 to send via WiFi.
+        // samplesRead is capped at DEFAULT_BUFFER_SIZE by the pool frame capacity.
+        {
+            uint16_t frameSamples = (samplesRead > DEFAULT_BUFFER_SIZE)
+                                    ? (uint16_t)DEFAULT_BUFFER_SIZE
+                                    : (uint16_t)samplesRead;
+            AudioFrame* frame = NULL;
+            if (xQueueReceive(audioFreePool, &frame, 0) == pdTRUE) {
+                memcpy(frame->data, outputBuffer, frameSamples * sizeof(int16_t));
+                frame->samples = frameSamples;
+                if (xQueueSend(audioReadyQueue, &frame, 0) != pdTRUE) {
+                    // Queue full — return frame to pool, drop this packet
+                    xQueueSend(audioFreePool, &frame, 0);
+                    audioPacketsDropped++;
+                } else {
+                    packetCount++;
                 }
+            } else {
+                // No free frame — pool exhausted, drop
+                audioPacketsDropped++;
             }
         }
 
