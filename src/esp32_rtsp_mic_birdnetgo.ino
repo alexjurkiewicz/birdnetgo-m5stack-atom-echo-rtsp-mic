@@ -1475,11 +1475,15 @@ void loop() {
         lastTempCheck = millis();
     }
 
+    // Track minimum heap on every loop iteration so the Web UI shows the true low-water mark
+    {
+        uint32_t h = ESP.getFreeHeap();
+        if (h < minFreeHeap) minFreeHeap = h;
+    }
+
     // Heap monitoring (every 10 minutes — useful for detecting leaks in long deployments)
     if (millis() - lastMemoryCheck > 600000) { // 10 min
-        uint32_t currentHeap = ESP.getFreeHeap();
-        if (currentHeap < minFreeHeap) minFreeHeap = currentHeap;
-        Serial.printf("[Heap] Current: %u KB, Min: %u KB\n", currentHeap / 1024, minFreeHeap / 1024);
+        Serial.printf("[Heap] Current: %u KB, Min: %u KB\n", ESP.getFreeHeap() / 1024, minFreeHeap / 1024);
         lastMemoryCheck = millis();
     }
 
