@@ -203,7 +203,7 @@ float wifiTxPowerDbm = DEFAULT_WIFI_TX_DBM;
 wifi_power_t currentWifiPowerLevel = WIFI_POWER_19_5dBm;
 bool wifiTxAutoEnabled = true;
 uint8_t wifiAutoStepDownConfirm = 0;
-unsigned long lastWifiAutoAdjust = 0;
+unsigned long lastWifiAutoEval = 0;  // updated on reset, step-up, and every 3min step-down check
 
 // -- RTSP connect/PLAY statistics
 unsigned long lastRtspClientConnectMs = 0;
@@ -272,7 +272,7 @@ static wifi_power_t stepWifiPowerDown(wifi_power_t cur) {
 
 void resetWifiAutoState() {
     wifiAutoStepDownConfirm = 0;
-    lastWifiAutoAdjust = millis();
+    lastWifiAutoEval = millis();
     currentWifiPowerLevel = WIFI_POWER_19_5dBm;
     WiFi.setTxPower(WIFI_POWER_19_5dBm);
 }
@@ -492,6 +492,7 @@ void checkWiFiHealth() {
         simplePrintln("WiFi disconnected! Reconnecting...");
         resetWifiAutoState();
         WiFi.reconnect();
+        return;
     }
 
     int32_t rssi = WiFi.RSSI();
@@ -503,7 +504,7 @@ void checkWiFiHealth() {
                 WiFi.setTxPower(newLevel);
                 currentWifiPowerLevel = newLevel;
                 wifiAutoStepDownConfirm = 0;
-                lastWifiAutoAdjust = millis();
+                lastWifiAutoEval = millis();
                 simplePrintln("WiFi auto TX up: " + String(wifiPowerLevelToDbm(newLevel), 1) + " dBm (RSSI " + String(rssi) + " dBm)");
             }
         }
@@ -577,7 +578,7 @@ void loadAudioSettings() {
     simplePrintln("Loaded settings: Rate=" + String(currentSampleRate) +
                   ", Gain=" + String(currentGainFactor, 1) +
                   ", Buffer=" + String(currentBufferSize) +
-                  ", WiFiTX=" + String(txShown, 1) + "dBm" +
+                  ", WiFiTX=" + String(txShown, 1) + "dBm" + (wifiTxAutoEnabled ? " (auto)" : "") +
                   ", shiftBits=" + String(i2sShiftBits) +
                   ", HPF=" + String(highpassEnabled?"on":"off") +
                   ", HPFcut=" + String(highpassCutoffHz) + "Hz");
@@ -1575,7 +1576,7 @@ void loop() {
         lastWiFiCheck = millis();
     }
 
-    if (wifiTxAutoEnabled && millis() - lastWifiAutoAdjust > 180000) { // 3 min
+    if (wifiTxAutoEnabled && millis() - lastWifiAutoEval > 180000) { // 3 min
         int32_t rssi = WiFi.RSSI();
         if (rssi < 0) {
             if (rssi > -50) {
@@ -1593,7 +1594,7 @@ void loop() {
                 wifiAutoStepDownConfirm = 0;
             }
         }
-        lastWifiAutoAdjust = millis();
+        lastWifiAutoEval = millis();
     }
 
     checkScheduledReset();
