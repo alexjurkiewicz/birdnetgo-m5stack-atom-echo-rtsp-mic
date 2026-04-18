@@ -443,7 +443,6 @@ static void httpActionServerStart(){
     webui_pushLog(F("UI action: server_start"));
     apiSendJSON(F("{\"ok\":true}"));
 }
-extern WiFiClient* volatile streamClient;
 extern bool requestStreamStop(const char* reason);
 static void httpActionServerStop(){
     if (isStreaming) {

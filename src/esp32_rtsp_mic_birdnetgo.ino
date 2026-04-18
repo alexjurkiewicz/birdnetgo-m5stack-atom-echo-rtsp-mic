@@ -1049,7 +1049,7 @@ static bool writeAll(WiFiClient &client, const uint8_t* data, size_t len) {
     const unsigned long WRITE_TIMEOUT_MS = 200;  // Core 0 can afford longer timeout — Core 1 is never blocked by WiFi
 
     while (off < len) {
-        // Check timeout to prevent blocking Core 1
+        // Drop frame if WiFi is too slow
         if (millis() - startTime > WRITE_TIMEOUT_MS) {
             // Drop frame if WiFi is too slow (normal with poor signal)
             return false;
@@ -1067,7 +1067,6 @@ static const uint32_t MAX_WRITE_FAILURES = 100;  // Allow ~5s of failures before
 
 void sendRTPPacket(WiFiClient &client, int16_t* audioData, int numSamples) {
     if (!client.connected()) {
-        client.stop();
         isStreaming = false;
         core1OwnsLED = false;
         return;
@@ -1135,10 +1134,9 @@ void sendRTPPacket(WiFiClient &client, int16_t* audioData, int numSamples) {
     }
 }
 
-// ================== CORE 0: NO AUDIO STREAMING ==================
-// Audio streaming is now handled entirely on Core 1
-// Core 0 only manages client connections and RTSP protocol
-// (streamAudio function removed - handled by Core 1 audioCaptureTask)
+// ================== CORE 0: RTP SEND + RTSP + WEB UI ==================
+// Core 0 dequeues AudioFrames from Core 1 and sends them via WiFi (sendFrameRTP).
+// Core 0 also manages RTSP protocol, client connections, and Web UI.
 
 // RTSP handling
 void handleRTSPCommand(WiFiClient &client, String request) {
@@ -1213,7 +1211,7 @@ void handleRTSPCommand(WiFiClient &client, String request) {
         simplePrintln("STREAMING STARTED");
 
     } else if (request.startsWith("TEARDOWN")) {
-        // Stop streaming FIRST — Core 1 owns the socket during streaming
+        // Stop streaming FIRST — Core 0 must drain the queue before sending response
         if (isStreaming) {
             requestStreamStop("TEARDOWN");
         }
