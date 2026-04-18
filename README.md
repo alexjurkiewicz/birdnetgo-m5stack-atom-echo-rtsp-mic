@@ -32,7 +32,7 @@ On first boot, connect to the `ESP32-RTSP-Mic-AP` access point and configure you
 
 ### 3. Stream
 ```bash
-vlc rtsp://atomecho.local:8554/audio
+vlc --rtsp-tcp rtsp://atomecho.local:8554/audio
 # or
 ffplay -rtsp_transport tcp rtsp://atomecho.local:8554/audio
 ```
