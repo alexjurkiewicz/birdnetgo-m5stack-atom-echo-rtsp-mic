@@ -1235,7 +1235,8 @@ void handleRTSPCommand(WiFiClient &client, String request) {
     }
 }
 
-// RTSP processing (runs on Core 0, only called when !isStreaming)
+// RTSP processing (runs on Core 0). Called during both negotiation and streaming
+// so that TEARDOWN and GET_PARAMETER are handled while audio is active.
 void processRTSP(WiFiClient &client) {
     if (!client.connected()) return;
 
