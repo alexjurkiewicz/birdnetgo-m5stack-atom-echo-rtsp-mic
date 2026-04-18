@@ -93,6 +93,7 @@ extern String formatSince(unsigned long eventMs);
 extern void restartI2S();
 extern void saveAudioSettings();
 extern void applyWifiTxPower(bool log);
+extern void resetWifiAutoState();
 extern const char* FW_VERSION_STR;
 
 // Web server and in-memory log ring buffer
@@ -481,7 +482,7 @@ static void httpSet() {
     else if (key == "buffer") { uint16_t v; if (argToUShort("value", v) && v>=256 && v<=9600) { currentBufferSize=v; if (autoThresholdEnabled) { minAcceptableRate = computeRecommendedMinRate(); } saveAudioSettings(); restartI2S(); } }
     // i2sShiftBits removed - fixed at 0 for PDM microphones
     else if (key == "wifi_tx") { float v; if (argToFloat("value", v) && v>=-1.0f && v<=19.5f) { extern float wifiTxPowerDbm; wifiTxPowerDbm = snapWifiTxDbm(v); applyWifiTxPower(true); saveAudioSettings(); } }
-    else if (key == "wifi_tx_auto") { String v=web.arg("value"); if (v=="on"||v=="off") { wifiTxAutoEnabled=(v=="on"); if (wifiTxAutoEnabled) { extern void resetWifiAutoState(); resetWifiAutoState(); } else { applyWifiTxPower(true); } saveAudioSettings(); } }
+    else if (key == "wifi_tx_auto") { String v=web.arg("value"); if (v=="on"||v=="off") { wifiTxAutoEnabled=(v=="on"); if (wifiTxAutoEnabled) { resetWifiAutoState(); } else { applyWifiTxPower(true); } saveAudioSettings(); } }
     else if (key == "auto_recovery") { String v=web.arg("value"); if (v=="on"||v=="off") { autoRecoveryEnabled=(v=="on"); saveAudioSettings(); } }
     else if (key == "thr_mode") { String v=web.arg("value"); if (v=="auto") { autoThresholdEnabled=true; minAcceptableRate = computeRecommendedMinRate(); saveAudioSettings(); } else if (v=="manual") { autoThresholdEnabled=false; saveAudioSettings(); } }
     else if (key == "min_rate") { uint32_t v; if (argToUInt("value", v) && v>=5 && v<=200) { minAcceptableRate=v; saveAudioSettings(); } }

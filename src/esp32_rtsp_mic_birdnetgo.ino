@@ -497,7 +497,7 @@ void checkWiFiHealth() {
     int32_t rssi = WiFi.RSSI();
 
     if (wifiTxAutoEnabled) {
-        if (rssi < 0 && rssi < -65) {
+        if (rssi < -65) {
             wifi_power_t newLevel = stepWifiPowerUp(currentWifiPowerLevel);
             if (newLevel != currentWifiPowerLevel) {
                 WiFi.setTxPower(newLevel);
