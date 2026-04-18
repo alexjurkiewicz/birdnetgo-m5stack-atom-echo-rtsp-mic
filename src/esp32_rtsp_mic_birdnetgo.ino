@@ -24,6 +24,17 @@ volatile bool streamCleanupDone = false;     // Core 1 confirms cleanup complete
 SemaphoreHandle_t taskExitSemaphore = NULL;  // confirmed task exit
 volatile bool core1OwnsLED = false;          // LED ownership flag
 
+// ================== INTER-CORE AUDIO QUEUE (STRUCT & POOL DEPTH) ==================
+// Core 1 produces processed frames; Core 0 consumes and sends via WiFi.
+// Fixed pool eliminates malloc on hot path; non-blocking enqueue drops frames
+// rather than stalling Core 1 (DMA overflow prevention).
+#define AUDIO_POOL_DEPTH 4
+
+struct AudioFrame {
+    int16_t* data;       // points into pre-allocated buffer
+    uint16_t samples;    // number of valid samples
+};
+
 // ================== SETTINGS (ESP32 RTSP Mic for BirdNET-Go) ==================
 #define FW_VERSION "2.4.0"
 // Expose FW version as a global C string for WebUI/API
@@ -36,6 +47,13 @@ const char* FW_VERSION_STR = FW_VERSION;
 #define DEFAULT_GAIN_FACTOR 3.0f
 #define DEFAULT_BUFFER_SIZE 3072   // 64ms @ 48kHz - good balance for BirdNET-Go
 #define DEFAULT_WIFI_TX_DBM 19.5f  // Default WiFi TX power in dBm
+
+// Pre-allocated sample storage for the pool
+static int16_t audioFrameStorage[AUDIO_POOL_DEPTH][DEFAULT_BUFFER_SIZE];
+static AudioFrame audioFramePool[AUDIO_POOL_DEPTH];
+
+QueueHandle_t audioReadyQueue = NULL;  // Core 1 → Core 0: filled frames
+QueueHandle_t audioFreePool   = NULL;  // Core 0 → Core 1: empty frames
 // High-pass filter defaults
 // Default 80 Hz removes only DC and infrasound. BirdNET-Go's low-frequency spectrogram
 // covers 0–3 kHz (trained on unfiltered audio) — 300 Hz removes signal for owls,
