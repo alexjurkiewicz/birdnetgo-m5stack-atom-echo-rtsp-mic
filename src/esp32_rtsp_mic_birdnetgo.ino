@@ -273,13 +273,9 @@ static wifi_power_t stepWifiPowerDown(wifi_power_t cur) {
 void resetWifiAutoState() {
     wifiAutoStepDownConfirm = 0;
     lastWifiAutoEval = millis();
-    // Only call WiFi.setTxPower() when actually restoring from a stepped-down level.
-    // Unconditional setTxPower() on a live connection (e.g. right after fresh connect)
-    // disrupts the WiFi stack and if checkWiFiHealth() then catches a slow reconnect it
-    // re-calls setTxPower() every 30s, cascading into a 90-240s outage.
-    if (currentWifiPowerLevel != WIFI_POWER_19_5dBm) {
-        WiFi.setTxPower(WIFI_POWER_19_5dBm);
-    }
+    // Never call setTxPower() here. On reconnect the WiFi stack resets TX power to maximum
+    // internally. Calling setTxPower() during reconnect disrupts the stack and causes
+    // checkWiFiHealth() to re-trigger it every 30s, cascading into 90-240s outages.
     currentWifiPowerLevel = WIFI_POWER_19_5dBm;
 }
 
