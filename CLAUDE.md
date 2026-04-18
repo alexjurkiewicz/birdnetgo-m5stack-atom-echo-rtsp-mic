@@ -17,13 +17,15 @@ See `README.md` for project documentation, features, architecture, and usage.
 - Web UI shows it as read-only: "0 bits (fixed for PDM)"
 
 ### Socket Ownership Model
-- Core 1 exclusively owns the WiFiClient socket during streaming
-- Core 0 must never touch the socket while streaming is active
-- Use `requestStreamStop()` for Core 0 to signal Core 1 to stop — never close the socket from Core 0
+- Core 0 exclusively owns the WiFiClient (`rtspClient`) at all times
+- Core 1 never touches the socket — it only enqueues processed `AudioFrame*` pointers to `audioReadyQueue`
+- Use `requestStreamStop()` for Core 0 to signal Core 1 to stop producing frames; Core 0 then closes the socket
 - Task shutdown uses a FreeRTOS semaphore with 2s timeout (confirmed exit pattern)
 
 ### Cross-Core Safety
 - Use FreeRTOS queues for inter-core data transfer (not custom ring buffers — cache coherency issues on ESP32)
+- Audio pipeline uses `audioReadyQueue` (Core 1→Core 0: filled frames) and `audioFreePool` (Core 0→Core 1: empty frames) with a pre-allocated pool of 4 frames
+- `AudioFrame` pool frames are sized to `DEFAULT_BUFFER_SIZE` — `currentBufferSize` is capped at this value at settings load
 - Use `portMUX_TYPE` spinlocks for shared log buffers
 - Use Xtensa `memw` memory barriers on critical flag transitions between cores
 - `core1OwnsLED` flag prevents concurrent FastLED/RMT driver access
