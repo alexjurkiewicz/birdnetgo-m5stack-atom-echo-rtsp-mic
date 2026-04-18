@@ -42,6 +42,7 @@ const char* FW_VERSION_STR = FW_VERSION;
 // bitterns, and other low-calling species. Raise only for strong wind/traffic noise.
 #define DEFAULT_HPF_ENABLED true
 #define DEFAULT_HPF_CUTOFF_HZ 80
+#define DEFAULT_MDNS_HOSTNAME "atomecho"
 
 // Thermal protection defaults
 #define DEFAULT_OVERHEAT_PROTECTION true
@@ -135,6 +136,7 @@ struct DcBlocker {
 bool highpassEnabled = DEFAULT_HPF_ENABLED;
 uint16_t highpassCutoffHz = DEFAULT_HPF_CUTOFF_HZ;
 Biquad hpf;
+String mdnsHostname = DEFAULT_MDNS_HOSTNAME;
 uint32_t hpfConfigSampleRate = 0;
 uint16_t hpfConfigCutoff = 0;
 
@@ -493,6 +495,8 @@ void loadAudioSettings() {
     overheatLastTimestamp = audioPrefs.getString("ohStamp", "");
     overheatTripTemp = audioPrefs.getFloat("ohTripC", 0.0f);
     overheatLatched = audioPrefs.getBool("ohLatched", false);
+    mdnsHostname = audioPrefs.getString("mdnsHost", DEFAULT_MDNS_HOSTNAME);
+    if (mdnsHostname.length() == 0) mdnsHostname = DEFAULT_MDNS_HOSTNAME;
     audioPrefs.end();
 
     if (autoThresholdEnabled) {
@@ -540,6 +544,7 @@ void saveAudioSettings() {
     audioPrefs.putString("ohStamp", overheatLastTimestamp);
     audioPrefs.putFloat("ohTripC", overheatTripTemp);
     audioPrefs.putBool("ohLatched", overheatLatched);
+    audioPrefs.putString("mdnsHost", mdnsHostname);
     audioPrefs.end();
 
     simplePrintln("Settings saved to flash");
@@ -1342,6 +1347,7 @@ void setup() {
     // WiFi optimization for stable streaming
     Serial.println("Initializing WiFi...");
     WiFi.setSleep(false);
+    WiFi.setHostname(mdnsHostname.c_str());
 
     WiFiManager wm;
     wm.setConnectTimeout(60);
@@ -1374,11 +1380,10 @@ void setup() {
     // Apply configured WiFi TX power after connect (logs once on change)
     applyWifiTxPower(true);
 
-    // mDNS: allows rtsp://atomecho.local:8554/audio
-    if (MDNS.begin("atomecho")) {
+    if (MDNS.begin(mdnsHostname.c_str())) {
         MDNS.addService("rtsp", "tcp", 8554);
         MDNS.addService("http", "tcp", 80);
-        simplePrintln("mDNS: atomecho.local");
+        simplePrintln("mDNS: " + mdnsHostname + ".local");
     }
 
     Serial.println("Setting up I2S driver...");
