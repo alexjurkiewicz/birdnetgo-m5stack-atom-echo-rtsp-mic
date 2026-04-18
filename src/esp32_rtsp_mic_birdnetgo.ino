@@ -1335,6 +1335,16 @@ void setup() {
     // Create task exit semaphore for confirmed Core 1 task shutdown
     taskExitSemaphore = xSemaphoreCreateBinary();
 
+    // Initialise inter-core audio queues and free pool
+    audioReadyQueue = xQueueCreate(AUDIO_POOL_DEPTH, sizeof(AudioFrame*));
+    audioFreePool   = xQueueCreate(AUDIO_POOL_DEPTH, sizeof(AudioFrame*));
+    for (int i = 0; i < AUDIO_POOL_DEPTH; i++) {
+        audioFramePool[i].data    = audioFrameStorage[i];
+        audioFramePool[i].samples = 0;
+        AudioFrame* fp = &audioFramePool[i];
+        xQueueSend(audioFreePool, &fp, 0);
+    }
+
     // Set LED to indicate startup
     M5.dis.drawpix(0, CRGB(128, 128, 0));  // Yellow for startup
 
