@@ -43,11 +43,12 @@ const char* FW_VERSION_STR = FW_VERSION;
                                    // SPM1423 PDM clock = 48000 × 64 = 3.072 MHz (spec: 1.0–3.25 MHz)
                                    // Hard max 48 kHz: 96 kHz pushes PDM clock to 6.144 MHz (2× over spec)
 #define DEFAULT_GAIN_FACTOR 3.0f
-#define DEFAULT_BUFFER_SIZE 3072   // 64ms @ 48kHz - good balance for BirdNET-Go
+#define DEFAULT_BUFFER_SIZE 9600   // 200ms @ 48kHz - larger buffer = lower click artifact rate
+#define MAX_BUFFER_SIZE     9600   // 200ms @ 48kHz - upper limit; heap-allocated at startup
 #define DEFAULT_WIFI_TX_DBM 19.5f  // Default WiFi TX power in dBm
 
-// Pre-allocated sample storage for the pool
-static int16_t audioFrameStorage[AUDIO_POOL_DEPTH][DEFAULT_BUFFER_SIZE];
+// Heap-allocated sample storage for the pool (avoids BSS overflow for large buffers)
+static int16_t* audioFrameStorage[AUDIO_POOL_DEPTH];
 static AudioFrame audioFramePool[AUDIO_POOL_DEPTH];
 
 QueueHandle_t audioReadyQueue = NULL;  // Core 1 → Core 0: filled frames
@@ -149,6 +150,7 @@ struct DcBlocker {
     }
     inline void reset() { x1 = y1 = 0.0f; }
 };
+bool dcBlockerEnabled = true;
 bool highpassEnabled = DEFAULT_HPF_ENABLED;
 uint16_t highpassCutoffHz = DEFAULT_HPF_CUTOFF_HZ;
 Biquad hpf;
@@ -486,7 +488,7 @@ void loadAudioSettings() {
     currentSampleRate = audioPrefs.getUInt("sampleRate", DEFAULT_SAMPLE_RATE);
     currentGainFactor = audioPrefs.getFloat("gainFactor", DEFAULT_GAIN_FACTOR);
     currentBufferSize = audioPrefs.getUShort("bufferSize", DEFAULT_BUFFER_SIZE);
-    if (currentBufferSize > DEFAULT_BUFFER_SIZE) currentBufferSize = DEFAULT_BUFFER_SIZE;
+    if (currentBufferSize > MAX_BUFFER_SIZE) currentBufferSize = MAX_BUFFER_SIZE;
     // i2sShiftBits is ALWAYS 0 for PDM microphones - not configurable
     i2sShiftBits = 0;
     autoRecoveryEnabled = audioPrefs.getBool("autoRecovery", false);
@@ -497,6 +499,7 @@ void loadAudioSettings() {
     autoThresholdEnabled = audioPrefs.getBool("thrAuto", true);
     cpuFrequencyMhz = audioPrefs.getUChar("cpuFreq", 160);
     wifiTxPowerDbm = audioPrefs.getFloat("wifiTxDbm", DEFAULT_WIFI_TX_DBM);
+    dcBlockerEnabled = audioPrefs.getBool("dcBlock", true);
     highpassEnabled = audioPrefs.getBool("hpEnable", DEFAULT_HPF_ENABLED);
     highpassCutoffHz = (uint16_t)audioPrefs.getUInt("hpCutoff", DEFAULT_HPF_CUTOFF_HZ);
     agcEnabled = audioPrefs.getBool("agcEnable", false);
@@ -548,6 +551,7 @@ void saveAudioSettings() {
     audioPrefs.putBool("thrAuto", autoThresholdEnabled);
     audioPrefs.putUChar("cpuFreq", cpuFrequencyMhz);
     audioPrefs.putFloat("wifiTxDbm", wifiTxPowerDbm);
+    audioPrefs.putBool("dcBlock", dcBlockerEnabled);
     audioPrefs.putBool("hpEnable", highpassEnabled);
     audioPrefs.putUInt("hpCutoff", (uint32_t)highpassCutoffHz);
     audioPrefs.putBool("agcEnable", agcEnabled);
@@ -605,6 +609,7 @@ void resetToDefaultSettings() {
     performanceCheckInterval = 15;
     cpuFrequencyMhz = 160;
     wifiTxPowerDbm = DEFAULT_WIFI_TX_DBM;
+    dcBlockerEnabled = true;
     highpassEnabled = DEFAULT_HPF_ENABLED;
     highpassCutoffHz = DEFAULT_HPF_CUTOFF_HZ;
     agcEnabled = false;
@@ -813,8 +818,9 @@ void audioCaptureTask(void* parameter) {
         for (int i = 0; i < samplesRead; i++) {
             float sample = (float)(captureBuffer[i] >> i2sShiftBits);
 
-            // Remove PDM DC bias before HPF (always active — see DC_BLOCKER_R comment)
-            sample = localDcBlocker.process(sample);
+            if (dcBlockerEnabled) {
+                sample = localDcBlocker.process(sample);
+            }
 
             if (highpassEnabled) {
                 sample = localHpf.process(sample);
@@ -899,8 +905,8 @@ void audioCaptureTask(void* parameter) {
         // Enqueue processed frame for Core 0 to send via WiFi.
         // samplesRead is capped at DEFAULT_BUFFER_SIZE by the pool frame capacity.
         {
-            uint16_t frameSamples = (samplesRead > DEFAULT_BUFFER_SIZE)
-                                    ? (uint16_t)DEFAULT_BUFFER_SIZE
+            uint16_t frameSamples = (samplesRead > MAX_BUFFER_SIZE)
+                                    ? (uint16_t)MAX_BUFFER_SIZE
                                     : (uint16_t)samplesRead;
             AudioFrame* frame = NULL;
             if (xQueueReceive(audioFreePool, &frame, 0) == pdTRUE) {
@@ -1000,10 +1006,22 @@ bool requestStreamStop(const char* reason) {
 void setup_i2s_driver() {
     i2s_driver_uninstall(I2S_NUM_0);
 
-    // Scale DMA buffer to ~3.75 ms per interrupt regardless of sample rate.
-    // Formula: round(rate × 0.00375), hardware max = 1024. Examples: 16k→60, 32k→120, 48k→180.
-    uint16_t dma_buf_len = (uint16_t)min(1024UL,
-        (unsigned long)((currentSampleRate * 375UL + 50000UL) / 100000UL));
+    // dma_buf_len must be an exact divisor of currentBufferSize so i2s_read()
+    // always completes on a DMA boundary. A non-integer ratio causes a PDM
+    // decimation glitch each read cycle that excites the SPM1423 MEMS resonance
+    // as 7-16 kHz clicking noise at the buffer-read rate (e.g. 15.6 Hz / 64 ms).
+    // Target ~4 ms per DMA interrupt, then scan down to the nearest divisor.
+    uint16_t dma_target = (uint16_t)min(1024UL, (unsigned long)(currentSampleRate / 250UL));
+    if (dma_target < 1) dma_target = 1;
+    uint16_t dma_buf_len = dma_target;
+    while (dma_buf_len > 1 && currentBufferSize % dma_buf_len != 0) {
+        dma_buf_len--;
+    }
+    if (dma_buf_len == 1) {
+        simplePrintln("WARNING: no good dma_buf_len divisor found for bufferSize=" +
+                      String(currentBufferSize) + " — PDM clicking artifact likely. "
+                      "Use a buffer size with small factors (e.g. 2048, 3072).");
+    }
 
     i2s_config_t i2s_config = {
         // PDM mode required for SPM1423 microphone on Atom Echo
@@ -1017,7 +1035,7 @@ void setup_i2s_driver() {
         .communication_format = I2S_COMM_FORMAT_I2S,
 #endif
         .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-        .dma_buf_count = 6,     // Match M5Atom Echo example
+        .dma_buf_count = 8,     // 8×192=1536 samples=32ms ring (was 6×180=22.5ms)
         .dma_buf_len = dma_buf_len,
         .use_apll = false,
         .tx_desc_auto_clear = false,
@@ -1040,6 +1058,7 @@ void setup_i2s_driver() {
 
     simplePrintln("I2S ready (PDM mode): " + String(currentSampleRate) + "Hz, gain " +
                   String(currentGainFactor, 1) + ", buffer " + String(currentBufferSize) +
+                  ", dma=" + String(dma_buf_len) + "×8" +
                   ", shiftBits " + String(i2sShiftBits));
 }
 
@@ -1300,6 +1319,11 @@ void setup() {
         while (true) { delay(1000); }
     }
     for (int i = 0; i < AUDIO_POOL_DEPTH; i++) {
+        audioFrameStorage[i] = (int16_t*)malloc(MAX_BUFFER_SIZE * sizeof(int16_t));
+        if (!audioFrameStorage[i]) {
+            Serial.println("FATAL: audio frame storage allocation failed");
+            while (true) { delay(1000); }
+        }
         audioFramePool[i].data    = audioFrameStorage[i];
         audioFramePool[i].samples = 0;
         AudioFrame* fp = &audioFramePool[i];

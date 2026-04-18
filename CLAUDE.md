@@ -22,10 +22,18 @@ See `README.md` for project documentation, features, architecture, and usage.
 - Use `requestStreamStop()` for Core 0 to signal Core 1 to stop producing frames; Core 0 then closes the socket
 - Task shutdown uses a FreeRTOS semaphore with 2s timeout (confirmed exit pattern)
 
+### DMA Buffer Alignment (dma_buf_len must divide currentBufferSize)
+- `dma_buf_len` = `currentSampleRate / 250` → 192 at 48 kHz
+- `DEFAULT_BUFFER_SIZE` (3072) / 192 = 16 exactly — no partial-buffer seam
+- Breaking this alignment causes the PDM decimation pipeline to glitch at each `i2s_read()` boundary,
+  exciting the SPM1423 MEMS resonance and producing continuous 7–16 kHz clicking noise at the buffer rate
+- All supported buffer sizes (256–8192) are valid divisors of 192 at 48 kHz
+- `dma_buf_count` = 8 (ring = 8×192 = 1536 samples = 32 ms headroom)
+
 ### Cross-Core Safety
 - Use FreeRTOS queues for inter-core data transfer (not custom ring buffers — cache coherency issues on ESP32)
 - Audio pipeline uses `audioReadyQueue` (Core 1→Core 0: filled frames) and `audioFreePool` (Core 0→Core 1: empty frames) with a pre-allocated pool of 4 frames
-- `AudioFrame` pool frames are sized to `DEFAULT_BUFFER_SIZE` — `currentBufferSize` is capped at this value at settings load
+- `AudioFrame` pool frames are sized to `MAX_BUFFER_SIZE` (8192) — `currentBufferSize` is capped at this value at settings load; default is `DEFAULT_BUFFER_SIZE` (3072)
 - Use `portMUX_TYPE` spinlocks for shared log buffers
 - Use Xtensa `memw` memory barriers on critical flag transitions between cores
 - `core1OwnsLED` flag prevents concurrent FastLED/RMT driver access
