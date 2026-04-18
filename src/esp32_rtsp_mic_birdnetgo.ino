@@ -12,8 +12,6 @@
 // Core 0: Web UI, diagnostics, RTSP protocol, client management
 // PDM microphone outputs 16-bit samples directly
 
-// Pointer handoff: Core 0 sets on PLAY, Core 1 uses for streaming, clears on failure
-WiFiClient* volatile streamClient = NULL;
 TaskHandle_t audioCaptureTaskHandle = NULL;
 volatile bool audioTaskRunning = false;
 
@@ -654,7 +652,6 @@ void restartI2S() {
 
     // If we were streaming, restart the pipeline with the existing client
     if (wasStreaming && rtspClient && rtspClient.connected()) {
-        streamClient = &rtspClient;
         isStreaming = true;
         startAudioCaptureTask();
         simplePrintln("I2S restarted, streaming resumed");
@@ -710,9 +707,9 @@ void drainRtspReceiveBuffer(WiFiClient &client) {
     }
 }
 
-// ================== CORE 1: FULL AUDIO PIPELINE ==================
-// I2S capture → DC blocker → HPF → gain → AGC → RTP → WiFi
-// Uses streamClient pointer (set by Core 0 on PLAY, cleared here on failure)
+// ================== CORE 1: AUDIO PRODUCER ==================
+// I2S capture → DC blocker → HPF → gain → AGC → enqueue AudioFrame
+// Core 1 never touches the socket. Sends processed frames to audioReadyQueue.
 // IMPORTANT: No String allocation or simplePrintln on this core (heap contention)
 void audioCaptureTask(void* parameter) {
     Serial.println("[Core1] Audio pipeline task started");
@@ -937,7 +934,7 @@ void audioCaptureTask(void* parameter) {
 // Start audio pipeline task on Core 1 (or reuse if already running)
 void startAudioCaptureTask() {
     if (audioCaptureTaskHandle != NULL) {
-        // Task already alive — it will pick up via isStreaming/streamClient
+        // Task already alive — it will pick up via isStreaming flag
         return;
     }
 
@@ -968,43 +965,35 @@ void stopAudioCaptureTask() {
     }
 }
 
-// Request Core 1 to stop streaming and clean up the socket.
-// Core 0 must NOT touch the WiFiClient while Core 1 owns it.
-// Returns true if Core 1 confirmed cleanup, false on timeout.
 bool requestStreamStop(const char* reason) {
-    // Early return if not streaming
-    if (!isStreaming && streamClient == NULL) return true;
+    if (!isStreaming) return true;
 
     Serial.printf("[Core0] requestStreamStop: %s\n", reason);
 
-    // Signal Core 1 to stop
     stopStreamRequested = true;
-    __asm__ __volatile__("memw" ::: "memory");  // Xtensa memory barrier
+    __asm__ __volatile__("memw" ::: "memory");
 
-    // Poll for Core 1 confirmation (up to 3s)
     unsigned long deadline = millis() + 3000;
     while (!streamCleanupDone && millis() < deadline) {
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 
-    if (streamCleanupDone) {
-        // Core 1 confirmed — safe to proceed
-        isStreaming = false;
-        streamClient = NULL;
-        stopStreamRequested = false;
-        streamCleanupDone = false;
-        Serial.printf("[Core0] Stream stopped cleanly: %s\n", reason);
-        return true;
-    } else {
-        // Timeout — force cleanup
-        Serial.printf("[Core0] WARNING: Stream stop timeout, forcing cleanup: %s\n", reason);
-        isStreaming = false;
-        streamClient = NULL;
-        stopStreamRequested = false;
-        streamCleanupDone = false;
-        core1OwnsLED = false;
-        return false;
+    bool clean = streamCleanupDone;
+    isStreaming = false;
+    stopStreamRequested = false;
+    streamCleanupDone = false;
+
+    // Core 0 owns the socket — close it here
+    if (rtspClient && rtspClient.connected()) {
+        rtspClient.stop();
     }
+
+    if (!clean) {
+        Serial.printf("[Core0] WARNING: Stream stop timeout, forced: %s\n", reason);
+    } else {
+        Serial.printf("[Core0] Stream stopped cleanly: %s\n", reason);
+    }
+    return clean;
 }
 
 // I2S setup for M5Stack Atom Echo (PDM microphone mode)
@@ -1078,6 +1067,7 @@ static const uint32_t MAX_WRITE_FAILURES = 100;  // Allow ~5s of failures before
 
 void sendRTPPacket(WiFiClient &client, int16_t* audioData, int numSamples) {
     if (!client.connected()) {
+        client.stop();
         isStreaming = false;
         core1OwnsLED = false;
         return;
@@ -1138,6 +1128,7 @@ void sendRTPPacket(WiFiClient &client, int16_t* audioData, int numSamples) {
         if (consecutiveWriteFailures >= MAX_WRITE_FAILURES) {
             Serial.printf("[Core0] %u consecutive write failures, disconnecting\n", consecutiveWriteFailures);
             consecutiveWriteFailures = 0;
+            client.stop();
             isStreaming = false;
             core1OwnsLED = false;
         }
@@ -1213,8 +1204,6 @@ void handleRTSPCommand(WiFiClient &client, String request) {
         core1OwnsLED = true;
         __asm__ __volatile__("memw" ::: "memory");
 
-        // Hand off client to Core 1 via pointer
-        streamClient = &rtspClient;
         isStreaming = true;
 
         // Start audio capture task
