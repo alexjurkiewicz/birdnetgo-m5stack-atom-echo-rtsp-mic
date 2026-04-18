@@ -1535,11 +1535,12 @@ void loop() {
                     simplePrintln("New RTSP client connected");
                 }
             }
+        }
 
-            // Phase: RTSP negotiation (only when not streaming)
-            if (rtspClient && rtspClient.connected()) {
-                processRTSP(rtspClient);
-            }
+        // RTSP command processing runs both pre-stream (negotiation) and during streaming
+        // (TEARDOWN, GET_PARAMETER). Core 0 owns the socket so this is safe at all times.
+        if (rtspClient && rtspClient.connected()) {
+            processRTSP(rtspClient);
         }
     } else {
         // RTSP server disabled (overheat lockout)
