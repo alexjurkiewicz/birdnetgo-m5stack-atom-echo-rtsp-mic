@@ -1098,12 +1098,15 @@ void setup_i2s_driver() {
 static bool writeAll(WiFiClient &client, const uint8_t* data, size_t len) {
     // SO_SNDTIMEO resets on partial progress, so enforce a hard wall-clock deadline.
     // A slow-draining client can otherwise block Core0 for tens of seconds.
+    // On deadline, close the socket cleanly to avoid leaving the client with a
+    // partial RTP packet (which would corrupt its protocol state and cause TEARDOWN).
     static const unsigned long WRITE_DEADLINE_MS = 2000;
     unsigned long deadline = millis() + WRITE_DEADLINE_MS;
     size_t off = 0;
     while (off < len) {
         if (millis() > deadline) {
-            Serial.printf("[Core0] Write deadline exceeded (%lums), disconnecting\n", WRITE_DEADLINE_MS);
+            Serial.printf("[Core0] Write deadline exceeded, closing connection\n");
+            client.stop();
             return false;
         }
         int w = client.write(data + off, len - off);
