@@ -201,10 +201,11 @@ uint8_t cpuFrequencyMhz = 160;          // CPU frequency (default 160 MHz — su
 
 // -- WiFi TX power (configurable)
 float wifiTxPowerDbm = DEFAULT_WIFI_TX_DBM;
-wifi_power_t currentWifiPowerLevel = WIFI_POWER_19_5dBm;
+wifi_power_t currentWifiPowerLevel = WIFI_POWER_19_5dBm;  // last value actually applied
+wifi_power_t nextWifiPowerLevel    = WIFI_POWER_19_5dBm;  // desired; applied in inter-packet window
 bool wifiTxAutoEnabled = true;
 uint8_t wifiAutoStepDownConfirm = 0;
-unsigned long lastWifiAutoEval = 0;  // updated on reset, step-up, and every 3min step-down check
+unsigned long lastWifiAutoEval = 0;
 
 // -- RTSP connect/PLAY statistics
 unsigned long lastRtspClientConnectMs = 0;
@@ -278,6 +279,7 @@ void resetWifiAutoState() {
     // internally. Calling setTxPower() during reconnect disrupts the stack and causes
     // checkWiFiHealth() to re-trigger it every 30s, cascading into 90-240s outages.
     currentWifiPowerLevel = WIFI_POWER_19_5dBm;
+    nextWifiPowerLevel    = WIFI_POWER_19_5dBm;
 }
 
 // Apply WiFi TX power
@@ -502,13 +504,11 @@ void checkWiFiHealth() {
 
     if (wifiTxAutoEnabled) {
         if (rssi < -65) {
-            wifi_power_t newLevel = stepWifiPowerUp(currentWifiPowerLevel);
-            if (newLevel != currentWifiPowerLevel) {
-                WiFi.setTxPower(newLevel);
-                currentWifiPowerLevel = newLevel;
+            wifi_power_t newLevel = stepWifiPowerUp(nextWifiPowerLevel);
+            if (newLevel != nextWifiPowerLevel) {
+                nextWifiPowerLevel = newLevel;
                 wifiAutoStepDownConfirm = 0;
                 lastWifiAutoEval = millis();
-                simplePrintln("WiFi auto TX up: " + String(wifiPowerLevelToDbm(newLevel), 1) + " dBm (RSSI " + String(rssi) + " dBm)");
             }
         }
     } else {
@@ -1126,7 +1126,7 @@ static bool writeAll(WiFiClient &client, const uint8_t* data, size_t len) {
 }
 
 static uint32_t consecutiveWriteFailures = 0;
-static const uint32_t MAX_WRITE_FAILURES = 100;  // Allow ~5s of failures before disconnect
+static const uint32_t MAX_WRITE_FAILURES = 10;  // 10 × 2s SO_SNDTIMEO = ~20s before disconnect
 
 void sendRTPPacket(WiFiClient &client, int16_t* audioData, int numSamples) {
     if (!client.connected()) {
@@ -1543,6 +1543,15 @@ void loop() {
         }
     }
 
+    // Apply any pending TX power change in the inter-packet window (queue now empty),
+    // so setTxPower() is never called while TCP writes are in-flight.
+    if (nextWifiPowerLevel != currentWifiPowerLevel && uxQueueMessagesWaiting(audioReadyQueue) == 0) {
+        const char* dir = (nextWifiPowerLevel > currentWifiPowerLevel) ? "up" : "down";
+        WiFi.setTxPower(nextWifiPowerLevel);
+        simplePrintln("WiFi auto TX " + String(dir) + ": " + String(wifiPowerLevelToDbm(nextWifiPowerLevel), 1) + " dBm");
+        currentWifiPowerLevel = nextWifiPowerLevel;
+    }
+
     if (millis() - lastTempCheck > 60000) { // 1 min
         checkTemperature();
         lastTempCheck = millis();
@@ -1577,10 +1586,8 @@ void loop() {
                 wifiAutoStepDownConfirm++;
                 if (wifiAutoStepDownConfirm >= 2) {
                     wifi_power_t newLevel = stepWifiPowerDown(currentWifiPowerLevel);
-                    if (newLevel != currentWifiPowerLevel) {
-                        WiFi.setTxPower(newLevel);
-                        currentWifiPowerLevel = newLevel;
-                        simplePrintln("WiFi auto TX down: " + String(wifiPowerLevelToDbm(newLevel), 1) + " dBm (RSSI " + String(rssi) + " dBm)");
+                    if (newLevel != nextWifiPowerLevel) {
+                        nextWifiPowerLevel = newLevel;
                     }
                     wifiAutoStepDownConfirm = 0;
                 }
@@ -1625,9 +1632,9 @@ void loop() {
                 if (newClient) {
                     rtspClient = newClient;
                     rtspClient.setNoDelay(true);
-                    // Enforce a 200ms send timeout at the socket level so write() returns
-                    // promptly on a dead connection instead of blocking until TCP gives up.
-                    struct timeval tv = {0, 200000};
+                    // 2s send timeout: enough for TCP to handle normal congestion backoff
+                    // without blocking Core0 indefinitely on a dead connection.
+                    struct timeval tv = {2, 0};
                     setsockopt(rtspClient.fd(), SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
                     rtspParseBufferPos = 0;
                     lastRTSPActivity = millis();
