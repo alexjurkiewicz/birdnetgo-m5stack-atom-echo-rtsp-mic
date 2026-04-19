@@ -160,13 +160,10 @@ static void httpIndex() {
         "</style></head><body>"
         "<div id='ovr' class='overlay'><div class='box' id='ovr_msg'>Restarting…</div></div>"
         "<div class='page'>"
-        "<div class='card'><div class='hero'><div><div class='brand'><div class='title' id='t_title'>M5Stack Atom Echo</div><span class='badge' id='fwv'></span></div><div class='subtitle'>URL: <a id='rtsp' class='mono' href='rtsp://"));
+        "<div class='card'><div class='hero'><div><div class='brand'><div class='title' id='t_title'>M5Stack Atom Echo</div><span class='badge' id='fwv'></span></div><div class='subtitle'>URL: <span id='rtsp' class='mono'>rtsp://"));
     web.sendContent(mdnsHostname + ".local");
     web.sendContent_P(PSTR(
-        ":8554/audio' target='_blank'>rtsp://"));
-    web.sendContent(mdnsHostname + ".local");
-    web.sendContent_P(PSTR(
-        ":8554/audio</a></div></div>"
+        ":8554/audio</span></div></div>"
         "<div class='lang'><a href='https://github.com/stedrow/birdnetgo-m5stack-atom-echo-rtsp-mic' target='_blank' class='gh'>GitHub</a>Lang: <select id='langSel'><option value='en'>English</option><option value='cs'>Čeština</option></select></div></div></div>"
         "<div class='row'>"
         "<div class='card'><h2 id='t_status'>Status</h2><table>"
