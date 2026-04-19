@@ -56,6 +56,7 @@ extern bool lastTemperatureValid;
 extern bool overheatLatched;
 extern bool agcEnabled;
 extern volatile float agcMultiplier;
+extern uint32_t audioPacketsDropped;
 extern uint8_t ledMode;
 extern bool dcBlockerEnabled;
 
@@ -324,6 +325,8 @@ static void httpStatus() {
     json += "\"rtsp_server_enabled\":" + String(rtspServerEnabled?"true":"false") + ",";
     if (rtspClient && rtspClient.connected()) json += "\"client\":\"" + rtspClient.remoteIP().toString() + "\","; else json += "\"client\":\"\",";
     json += "\"streaming\":" + String(isStreaming?"true":"false") + ",";
+    if (lastTemperatureValid) json += "\"temp_c\":" + String(lastTemperatureC, 1) + ",";
+    json += "\"dropped_packets\":" + String(audioPacketsDropped) + ",";
     json += "\"current_rate_pkt_s\":" + String(currentRate) + ",";
     json += "\"last_rtsp_connect\":\"" + jsonEscape(formatSince(lastRtspClientConnectMs)) + "\",";
     json += "\"last_stream_start\":\"" + jsonEscape(formatSince(lastRtspPlayMs)) + "\",";
