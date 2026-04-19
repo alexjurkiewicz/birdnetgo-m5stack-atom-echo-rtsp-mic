@@ -133,9 +133,9 @@ static void apiSendJSON(const String &json) {
 // HTML UI
 static void httpIndex() {
     web.setContentLength(CONTENT_LENGTH_UNKNOWN);
-    web.send(200, "text/html; charset=utf-8", "");
+    web.send(200, "text/html; charset=utf-8", F("<!doctype html>"));
     web.sendContent_P(PSTR(
-        "<!doctype html><html><head><meta charset='utf-8'>"
+        "<html><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<title>M5Stack Atom Echo - RTSP Microphone</title>"
         "<style>:root{--bg:#0b1020;--fg:#e7ebf2;--muted:#9aa3b2;--card:#121a2e;--border:#1b2745;--acc:#4ea1f3;--acc2:#36d399;--warn:#f59e0b;--bad:#ef4444}"
@@ -427,7 +427,7 @@ static void httpLogs() {
         size_t idx = (logHead + LOG_CAP - logCount + i) % LOG_CAP;
         out += logBuffer[idx]; out += '\n';
     }
-    web.send(200, "text/plain; charset=utf-8", out);
+    web.send(200, "text/plain; charset=utf-8", out.length() ? out : String("\n"));
 }
 
 static void httpActionServerStart(){
