@@ -1,4 +1,6 @@
 #include <WiFi.h>
+#include "esp_system.h"
+#include "esp_core_dump.h"
 #include <WiFiManager.h>
 #include <ESPmDNS.h>
 #include "driver/i2s.h"
@@ -1307,6 +1309,22 @@ void setup() {
     delay(500);
     Serial.println("\n\n=== ESP32 RTSP Mic Starting ===");
     Serial.println("Board: M5Stack Atom Echo");
+
+    // Log why we rebooted — critical for diagnosing crashes
+    static const char* resetReasons[] = {
+        "UNKNOWN", "POWERON", "EXT", "SW", "PANIC",
+        "INT_WDT", "TASK_WDT", "WDT", "DEEPSLEEP", "BROWNOUT", "SDIO"
+    };
+    int rr = (int)esp_reset_reason();
+    Serial.printf("Reset reason: %s (%d)\n",
+        (rr < 11 ? resetReasons[rr] : "OTHER"), rr);
+
+    // Check for a saved coredump from the previous crash
+    size_t cd_addr = 0, cd_size = 0;
+    if (esp_core_dump_image_get(&cd_addr, &cd_size) == ESP_OK && cd_size > 0) {
+        Serial.printf("Coredump saved from previous crash: addr=0x%x size=%u bytes\n", cd_addr, cd_size);
+        Serial.println("  Run: pio run -t coredump_info  (or decode manually with idf.py coredump-info)");
+    }
 
     // Create task exit semaphore for confirmed Core 1 task shutdown
     taskExitSemaphore = xSemaphoreCreateBinary();
