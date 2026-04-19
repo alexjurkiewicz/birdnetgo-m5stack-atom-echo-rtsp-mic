@@ -1117,16 +1117,22 @@ void setup_i2s_driver() {
 static bool writeAll(WiFiClient &client, const uint8_t* data, size_t len) {
     size_t off = 0;
     unsigned long startTime = millis();
-    const unsigned long WRITE_TIMEOUT_MS = 200;  // Core 0 can afford longer timeout — Core 1 is never blocked by WiFi
+    const unsigned long WRITE_TIMEOUT_MS = 200;
 
     while (off < len) {
-        // Drop frame if WiFi is too slow
-        if (millis() - startTime > WRITE_TIMEOUT_MS) {
-            // Drop frame if WiFi is too slow (normal with poor signal)
-            return false;
-        }
+        if (millis() - startTime > WRITE_TIMEOUT_MS) return false;
 
-        int w = client.write(data + off, len - off);
+        // Only write what the send buffer can accept right now.
+        // client.write() blocks until ACKs arrive when the buffer is full and
+        // the remote is gone — bypassing the millis() timeout above.
+        // availableForWrite() bounds the write to non-blocking territory.
+        size_t avail = client.availableForWrite();
+        if (avail == 0) {
+            vTaskDelay(1);  // yield and retry
+            continue;
+        }
+        size_t chunk = min(avail, len - off);
+        int w = client.write(data + off, chunk);
         if (w <= 0) return false;
         off += (size_t)w;
     }
