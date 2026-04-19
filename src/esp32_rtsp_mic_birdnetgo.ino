@@ -1168,11 +1168,9 @@ void sendRTPPacket(WiFiClient &client, int16_t* audioData, int numSamples) {
         consecutiveWriteFailures++;
 
         if (consecutiveWriteFailures >= MAX_WRITE_FAILURES) {
-            Serial.printf("[Core0] %u consecutive write failures, disconnecting\n", consecutiveWriteFailures);
-            consecutiveWriteFailures = 0;
-            client.stop();
-            isStreaming = false;
-            core1OwnsLED = false;
+            Serial.printf("[Core0] %u consecutive write failures — TCP stack unrecoverable, restarting\n", consecutiveWriteFailures);
+            delay(200);
+            ESP.restart();
         }
     }
 }
