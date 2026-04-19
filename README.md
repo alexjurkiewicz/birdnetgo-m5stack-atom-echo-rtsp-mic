@@ -52,6 +52,7 @@ ffplay -rtsp_transport tcp rtsp://atomecho.local:8554/audio
 | Buffer | 1024 samples | 64ms latency, stable streaming |
 | CPU | 160 MHz | Sufficient, reduces heat |
 | I2S Shift | 0 bits | Fixed for PDM — do not change |
+| WiFi TX Power | 19.5 dBm (max) | Lower values reduce RF self-noise picked up by the microphone, but changing TX power during an active stream disrupts the WiFi PHY and causes TCP stalls. Only lower if your AP is very close and you can tolerate a brief reconnect. |
 
 ## LED Status
 
