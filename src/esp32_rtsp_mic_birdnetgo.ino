@@ -169,6 +169,7 @@ unsigned long lastMemoryCheck = 0;
 unsigned long lastPerformanceCheck = 0;
 unsigned long lastCore0StatsLog = 0;
 unsigned long lastWiFiCheck = 0;
+unsigned long lastNetworkActivity = 0;
 unsigned long lastTempCheck = 0;
 uint32_t minFreeHeap = 0xFFFFFFFF;
 uint32_t maxPacketRate = 0;
@@ -470,7 +471,18 @@ void checkWiFiHealth() {
         }
         simplePrintln("WiFi disconnected! Reconnecting...");
         WiFi.reconnect();
+        lastNetworkActivity = millis(); // reset so watchdog doesn't fire immediately after reconnect
         return;
+    }
+
+    // Network zombie detection: WiFi layer connected but lwIP stack dead.
+    // Symptom: WiFi.RSSI() returns values but no TCP connections succeed.
+    // Trigger: sustained TCP load during BEACON_TIMEOUT + reconnect cycles.
+    // Recovery: restart the device (lwIP stack cannot be reset in-place).
+    if (millis() - lastNetworkActivity > 300000UL) { // 5 min with no HTTP or RTSP traffic
+        simplePrintln("Network zombie detected (connected but no traffic for 5min) — restarting");
+        delay(200);
+        ESP.restart();
     }
 
     int32_t rssi = WiFi.RSSI();
@@ -1450,6 +1462,7 @@ void setup() {
 
     lastStatsReset = millis();
     lastRTSPActivity = millis();
+    lastNetworkActivity = millis();
     lastMemoryCheck = millis();
     lastPerformanceCheck = millis();
     lastWiFiCheck = millis();
@@ -1602,6 +1615,7 @@ void loop() {
                     setsockopt(rtspClient.fd(), SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
                     rtspParseBufferPos = 0;
                     lastRTSPActivity = millis();
+                    lastNetworkActivity = millis();
                     lastRtspClientConnectMs = millis();
                     rtspConnectCount++;
                     simplePrintln("New RTSP client connected");

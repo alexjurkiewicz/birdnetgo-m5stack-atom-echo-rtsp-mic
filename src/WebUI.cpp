@@ -11,6 +11,7 @@ extern volatile bool isStreaming;
 extern uint16_t rtpSequence;
 extern uint32_t rtpTimestamp;
 extern unsigned long lastStatsReset;
+extern unsigned long lastNetworkActivity;
 extern unsigned long lastRtspPlayMs;
 extern uint32_t rtspPlayCount;
 extern unsigned long lastRtspClientConnectMs;
@@ -132,6 +133,7 @@ static void apiSendJSON(const String &json) {
 
 // HTML UI
 static void httpIndex() {
+    lastNetworkActivity = millis();
     web.setContentLength(CONTENT_LENGTH_UNKNOWN);
     web.send(200, "text/html; charset=utf-8", F("<!doctype html>"));
     web.sendContent_P(PSTR(
@@ -306,6 +308,7 @@ static void httpIndex() {
 // HTTP handlery
 
 static void httpStatus() {
+    lastNetworkActivity = millis();
     unsigned long uptimeSeconds = (millis() - bootTime) / 1000;
     String uptimeStr = formatUptime(uptimeSeconds);
     unsigned long runtime = millis() - lastStatsReset;
