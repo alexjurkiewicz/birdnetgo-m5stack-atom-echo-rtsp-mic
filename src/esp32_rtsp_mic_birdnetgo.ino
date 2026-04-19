@@ -167,6 +167,7 @@ Preferences audioPrefs;
 // -- Diagnostics, auto-recovery and temperature monitoring
 unsigned long lastMemoryCheck = 0;
 unsigned long lastPerformanceCheck = 0;
+unsigned long lastCore0StatsLog = 0;
 unsigned long lastWiFiCheck = 0;
 unsigned long lastTempCheck = 0;
 uint32_t minFreeHeap = 0xFFFFFFFF;
@@ -781,8 +782,17 @@ void audioCaptureTask(void* parameter) {
 
         // Periodic stats (every 30s) — Serial.printf only, no heap alloc
         if (millis() - lastStatsLog > 30000) {
-            Serial.printf("[Core1] Sent=%u I2Serr=%u Clip=%lu AGC=%.2f\n",
-                         packetCount, i2sErrors, audioClipCount, localAgcMult);
+            char ts[16];
+            time_t now; time(&now);
+            if (now > 100000) {
+                struct tm ti; localtime_r(&now, &ti);
+                strftime(ts, sizeof(ts), "[%H:%M:%S]", &ti);
+            } else {
+                unsigned long s = (millis() - bootTime) / 1000;
+                snprintf(ts, sizeof(ts), "[%02lu:%02lu:%02lu]", s/3600, (s%3600)/60, s%60);
+            }
+            Serial.printf("%s [Core1] Sent=%u I2Serr=%u Clip=%lu AGC=%.2f\n",
+                         ts, packetCount, i2sErrors, audioClipCount, localAgcMult);
             lastStatsLog = millis();
         }
 
@@ -1531,6 +1541,24 @@ void loop() {
     if (millis() - lastPerformanceCheck > (performanceCheckInterval * 60000UL)) {
         checkPerformance();
         lastPerformanceCheck = millis();
+    }
+
+    if (millis() - lastCore0StatsLog > 30000) {
+        char ts[16];
+        time_t now; time(&now);
+        if (now > 100000) {
+            struct tm ti; localtime_r(&now, &ti);
+            strftime(ts, sizeof(ts), "[%H:%M:%S]", &ti);
+        } else {
+            unsigned long s = (millis() - bootTime) / 1000;
+            snprintf(ts, sizeof(ts), "[%02lu:%02lu:%02lu]", s/3600, (s%3600)/60, s%60);
+        }
+        int32_t rssi = WiFi.RSSI();
+        if (lastTemperatureValid)
+            Serial.printf("%s [Core0] RSSI=%d dBm Temp=%.1f C Heap=%u KB\n", ts, rssi, lastTemperatureC, ESP.getFreeHeap() / 1024);
+        else
+            Serial.printf("%s [Core0] RSSI=%d dBm Temp=n/a Heap=%u KB\n", ts, rssi, ESP.getFreeHeap() / 1024);
+        lastCore0StatsLog = millis();
     }
 
     if (millis() - lastWiFiCheck > 30000) { // 30 s
