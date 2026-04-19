@@ -31,7 +31,6 @@ extern uint32_t performanceCheckInterval;
 extern bool autoRecoveryEnabled;
 extern uint8_t cpuFrequencyMhz;
 extern wifi_power_t currentWifiPowerLevel;
-extern bool wifiTxAutoEnabled;
 extern void resetToDefaultSettings();
 extern bool autoThresholdEnabled;
 extern uint32_t computeRecommendedMinRate();
@@ -93,7 +92,6 @@ extern String formatSince(unsigned long eventMs);
 extern void restartI2S();
 extern void saveAudioSettings();
 extern void applyWifiTxPower(bool log);
-extern void resetWifiAutoState();
 extern const char* FW_VERSION_STR;
 
 // Web server and in-memory log ring buffer
@@ -252,11 +250,8 @@ static void httpIndex() {
         "<tr id='row_chk_hint' style='display:none'><td colspan='2'><div class='hint' id='txt_chk_hint'></div></td></tr>"
         "<tr id='row_tx_hint' style='display:none'><td colspan='2'><div class='hint' id='txt_tx_hint'></div></td></tr>"
         "<tr><td class='k'><span id='t_wifi_tx2'>TX Power</span><span class='help' id='h_tx'>?</span></td><td class='v'><div class='field'>"
-        "<select id='sel_tx_mode' onchange=\"setv('wifi_tx_auto',this.value==='auto'?'on':'off')\"><option value='auto'>Auto</option><option value='manual'>Manual</option></select>"
-        "<span id='tx_auto_val' class='unit'></span>"
-        "<span id='tx_manual_ctrl' style='display:none'>"
         "<select id='sel_tx'><option>-1.0</option><option>2.0</option><option>5.0</option><option>7.0</option><option>8.5</option><option>11.0</option><option>13.0</option><option>15.0</option><option>17.0</option><option>18.5</option><option>19.0</option><option>19.5</option></select>"
-        "<span class='unit'>dBm</span><button id='btn_tx_set' onclick=\"setv('wifi_tx',sel_tx.value)\">Set</button></span></div></td></tr>"
+        "<span class='unit'>dBm</span><button id='btn_tx_set' onclick=\"setv('wifi_tx',sel_tx.value)\">Set</button></div></td></tr>"
         "<tr><td class='k'>Hostname</td><td class='v'><div class='field'><input id='in_hostname' type='text' maxlength='63' style='width:9em'><span class='unit'>.local</span><button onclick='setHostname()'>Set &amp; Reboot</button></div></td></tr>"
         "<tr><td class='k'><span id='t_cpu'>CPU Frequency</span><span class='help' id='h_cpu'>?</span></td><td class='v'><div class='field'>"
         "<select id='sel_cpu'><option>80</option><option>120</option><option>160</option><option>240</option></select><span class='unit'>MHz</span><button id='btn_cpu_set' onclick=\"setv('cpu_freq',sel_cpu.value)\">Set</button></div></td></tr>"
@@ -290,7 +285,7 @@ static void httpIndex() {
         "function trackEdit(el,key){if(!el)return; const bump=()=>{edits[key]=Date.now()+10000; toggleDirty(el,key)}; el.addEventListener('input',bump); el.addEventListener('change',bump)}"
         "function toggleDirty(el,key){ if(!el)return; const now=Date.now(); const d=(edits[key]&&now<edits[key]); el.classList.toggle('dirty', !!d); if(!d){ delete edits[key]; } }"
         "function setToggleState(on){const onb=$('b_srv_on'), offb=$('b_srv_off'); if(onb&&offb){onb.classList.toggle('active',on); offb.classList.toggle('active',!on); onb.disabled=on; offb.disabled=!on;}}"
-        "function loadStatus(){fetch('/api/status',{cache:'no-store'}).then(r=>r.json()).then(j=>{ $('ip').textContent=j.ip; $('rssi').textContent=j.wifi_rssi+' dBm'; $('wtx').textContent=(j.wifi_tx_auto?'Auto: ':'')+j.wifi_tx_dbm.toFixed(1)+' dBm'; $('heap').textContent=j.free_heap_kb+' KB ('+j.min_free_heap_kb+' KB)'; $('uptime').textContent=j.uptime; $('srv').innerHTML=fmtSrv(j.rtsp_server_enabled); setToggleState(j.rtsp_server_enabled); $('client').textContent=j.client || 'Waiting...'; $('stream').innerHTML=fmtBool(j.streaming); $('rate').textContent=j.current_rate_pkt_s+' pkt/s'; $('lcon').textContent=j.last_rtsp_connect; $('lplay').textContent=j.last_stream_start; const stxMode=$('sel_tx_mode'); const stx=$('sel_tx'); const txAutoVal=$('tx_auto_val'); const txManual=$('tx_manual_ctrl'); const now=Date.now(); if(stxMode){ const editing=(edits['wifi_tx_auto']&&now<edits['wifi_tx_auto']); if(!(locks['wifi_tx_auto']&&now<locks['wifi_tx_auto']) && !editing) stxMode.value=j.wifi_tx_auto?'auto':'manual'; const isAuto=(stxMode.value==='auto'); if(txManual) txManual.style.display=isAuto?'none':''; if(txAutoVal) txAutoVal.textContent=isAuto?(j.wifi_tx_dbm.toFixed(1)+' dBm'):''; } if(stx&&!j.wifi_tx_auto){ const editing=(edits['wifi_tx']&&now<edits['wifi_tx']); if(!(locks['wifi_tx']&&now<locks['wifi_tx']) && !editing) stx.value=j.wifi_tx_dbm.toFixed(1); toggleDirty(stx,'wifi_tx'); } const fv=$('fwv'); if(fv && j.fw_version){ fv.textContent='v'+j.fw_version; } const hn=$('in_hostname'); if(hn && j.mdns_hostname && document.activeElement!==hn) hn.value=j.mdns_hostname; })}"
+        "function loadStatus(){fetch('/api/status',{cache:'no-store'}).then(r=>r.json()).then(j=>{ $('ip').textContent=j.ip; $('rssi').textContent=j.wifi_rssi+' dBm'; $('wtx').textContent=j.wifi_tx_dbm.toFixed(1)+' dBm'; $('heap').textContent=j.free_heap_kb+' KB ('+j.min_free_heap_kb+' KB)'; $('uptime').textContent=j.uptime; $('srv').innerHTML=fmtSrv(j.rtsp_server_enabled); setToggleState(j.rtsp_server_enabled); $('client').textContent=j.client || 'Waiting...'; $('stream').innerHTML=fmtBool(j.streaming); $('rate').textContent=j.current_rate_pkt_s+' pkt/s'; $('lcon').textContent=j.last_rtsp_connect; $('lplay').textContent=j.last_stream_start; const stx=$('sel_tx'); const now=Date.now(); if(stx){ const editing=(edits['wifi_tx']&&now<edits['wifi_tx']); if(!(locks['wifi_tx']&&now<locks['wifi_tx']) && !editing) stx.value=j.wifi_tx_dbm.toFixed(1); toggleDirty(stx,'wifi_tx'); } const fv=$('fwv'); if(fv && j.fw_version){ fv.textContent='v'+j.fw_version; } const hn=$('in_hostname'); if(hn && j.mdns_hostname && document.activeElement!==hn) hn.value=j.mdns_hostname; })}"
         "function loadAudio(){fetch('/api/audio_status',{cache:'no-store'}).then(r=>r.json()).then(j=>{ const r=$('in_rate'); const g=$('in_gain'); const sb=$('sel_buf'); const s=$('in_shift'); const hp=$('sel_hp'); const hpc=$('in_hp_cutoff'); const now=Date.now(); if(r){ const editing=(edits['rate']&&now<edits['rate']); if(!(locks['rate']&&now<locks['rate']) && !editing) r.value=j.sample_rate; toggleDirty(r,'rate'); } if(g){ const editing=(edits['gain']&&now<edits['gain']); if(!(locks['gain']&&now<locks['gain']) && !editing) g.value=j.gain.toFixed(2); toggleDirty(g,'gain'); } if(sb){ const editing=(edits['buffer']&&now<edits['buffer']); if(!(locks['buffer']&&now<locks['buffer']) && !editing) sb.value=j.buffer_size; toggleDirty(sb,'buffer'); } if(s){ const editing=(edits['shift']&&now<edits['shift']); if(!(locks['shift']&&now<locks['shift']) && !editing) s.value=j.i2s_shift; toggleDirty(s,'shift'); } const dcb=$('sel_dcb'); if(dcb){ const editing=(edits['dc_blocker']&&now<edits['dc_blocker']); if(!(locks['dc_blocker']&&now<locks['dc_blocker']) && !editing) dcb.value=j.dc_blocker_enable?'on':'off'; toggleDirty(dcb,'dc_blocker'); } if(hp){ const editing=(edits['hp_enable']&&now<edits['hp_enable']); if(!(locks['hp_enable']&&now<locks['hp_enable']) && !editing) hp.value=j.hp_enable?'on':'off'; toggleDirty(hp,'hp_enable'); } if(hpc){ const editing=(edits['hp_cutoff']&&now<edits['hp_cutoff']); if(!(locks['hp_cutoff']&&now<locks['hp_cutoff']) && !editing) hpc.value=j.hp_cutoff_hz; toggleDirty(hpc,'hp_cutoff'); } const agc=$('sel_agc'); if(agc){ const editing=(edits['agc_enable']&&now<edits['agc_enable']); if(!(locks['agc_enable']&&now<locks['agc_enable']) && !editing) agc.value=j.agc_enable?'on':'off'; toggleDirty(agc,'agc_enable'); } const agi=$('agc_info'); if(agi){ if(j.agc_enable) agi.textContent='x'+j.agc_multiplier.toFixed(1)+' (eff: '+j.effective_gain.toFixed(1)+'x)'; else agi.textContent=''; } const led=$('sel_led'); if(led){ const editing=(edits['led_mode']&&now<edits['led_mode']); if(!(locks['led_mode']&&now<locks['led_mode']) && !editing) led.value=String(j.led_mode||0); toggleDirty(led,'led_mode'); } $('lat').textContent=j.latency_ms.toFixed(1)+' ms'; $('profile').textContent=profileText(j.buffer_size); const L=T[lang]; const lvl=$('level'); if(lvl){ const pct=j.peak_pct||0, db=j.peak_dbfs||-90, clip=j.clip, cc=j.clip_count||0; if(clip){ lvl.innerHTML = `<span class='bad'>${L.clip_bad}</span> Peak ${pct.toFixed(0)}% (${db.toFixed(1)} dBFS), clips: ${cc}`; } else if(pct>=90){ lvl.innerHTML = `<span class='warn'>${L.clip_warn}</span> Peak ${pct.toFixed(0)}% (${db.toFixed(1)} dBFS)`; } else { lvl.textContent = `Peak ${pct.toFixed(0)}% (${db.toFixed(1)} dBFS) — ${L.clip_ok}`; } } updateAdvice(j); })}"
         "function updateAdvice(a){const L=T[lang]; let tips=[]; if(a.buffer_size<512) tips.push(L.adv_buf512); if(a.buffer_size<1024) tips.push(L.adv_buf1024); if(a.gain>20) tips.push(L.adv_gain); $('adv').textContent=tips.join(' ');}"
         "function loadPerf(){fetch('/api/perf_status',{cache:'no-store'}).then(r=>r.json()).then(j=>{ const el=$('in_auto'); if(el) el.value=j.auto_recovery?'on':'off'; const thr=$('in_thr'); const chk=$('in_chk'); const mode=$('in_thr_mode'); const sch=$('in_sched'); const hrs=$('in_hours'); const now=Date.now(); if(mode){ const editing=(edits['thr_mode']&&now<edits['thr_mode']); if(!(locks['thr_mode']&&now<locks['thr_mode']) && !editing) mode.value=j.auto_threshold?'auto':'manual'; toggleDirty(mode,'thr_mode'); } if(thr){ const editing=(edits['min_rate']&&now<edits['min_rate']); if(!(locks['min_rate']&&now<locks['min_rate']) && !editing) thr.value=j.restart_threshold_pkt_s; toggleDirty(thr,'min_rate'); } if(chk){ const editing=(edits['check_interval']&&now<edits['check_interval']); if(!(locks['check_interval']&&now<locks['check_interval']) && !editing) chk.value=j.check_interval_min; toggleDirty(chk,'check_interval'); } if(sch){ const editing=(edits['sched_reset']&&now<edits['sched_reset']); if(!(locks['sched_reset']&&now<locks['sched_reset']) && !editing) sch.value=j.scheduled_reset?'on':'off'; toggleDirty(sch,'sched_reset'); } if(hrs){ const editing=(edits['reset_hours']&&now<edits['reset_hours']); if(!(locks['reset_hours']&&now<locks['reset_hours']) && !editing) hrs.value=j.reset_hours; toggleDirty(hrs,'reset_hours'); } $('row_min_rate').style.display=j.auto_threshold?'none':''; })}"
@@ -303,7 +298,7 @@ static void httpIndex() {
         "const sel=document.getElementById('langSel'); sel.value=lang; sel.onchange=()=>{lang=sel.value;localStorage.setItem('lang',lang);applyLang()}; applyLang();"
         "bindSaver($('in_rate'),'rate'); bindSaver($('in_gain'),'gain'); bindSaver($('in_shift'),'shift'); bindSaver($('in_thr'),'min_rate'); bindSaver($('in_chk'),'check_interval'); bindSaver($('in_hours'),'reset_hours'); bindSaver($('in_hp_cutoff'),'hp_cutoff');"
         "trackEdit($('in_rate'),'rate'); trackEdit($('in_gain'),'gain'); trackEdit($('in_shift'),'shift'); trackEdit($('in_thr'),'min_rate'); trackEdit($('in_chk'),'check_interval'); trackEdit($('in_hours'),'reset_hours'); trackEdit($('in_hp_cutoff'),'hp_cutoff');"
-"trackEdit($('sel_led'),'led_mode'); trackEdit($('in_auto'),'auto_recovery'); trackEdit($('in_thr_mode'),'thr_mode'); trackEdit($('in_sched'),'sched_reset'); trackEdit($('sel_buf'),'buffer'); trackEdit($('sel_tx_mode'),'wifi_tx_auto'); trackEdit($('sel_tx'),'wifi_tx'); trackEdit($('sel_dcb'),'dc_blocker'); trackEdit($('sel_hp'),'hp_enable'); trackEdit($('sel_agc'),'agc_enable'); trackEdit($('sel_cpu'),'cpu_freq'); trackEdit($('sel_oh_enable'),'oh_enable'); trackEdit($('sel_oh_limit'),'oh_limit');"
+"trackEdit($('sel_led'),'led_mode'); trackEdit($('in_auto'),'auto_recovery'); trackEdit($('in_thr_mode'),'thr_mode'); trackEdit($('in_sched'),'sched_reset'); trackEdit($('sel_buf'),'buffer'); trackEdit($('sel_tx'),'wifi_tx'); trackEdit($('sel_dcb'),'dc_blocker'); trackEdit($('sel_hp'),'hp_enable'); trackEdit($('sel_agc'),'agc_enable'); trackEdit($('sel_cpu'),'cpu_freq'); trackEdit($('sel_oh_enable'),'oh_enable'); trackEdit($('sel_oh_limit'),'oh_limit');"
         "const H=(hid,rid)=>{const h=$(hid), r=$(rid); if(h&&r){ h.onclick=()=>{ r.style.display = (r.style.display==='none'||!r.style.display)?'block':'none'; }; }};"
 "H('h_dcb','row_dcb_hint'); H('h_led','row_led_hint'); H('h_rate','row_rate_hint'); H('h_gain','row_gain_hint'); H('h_hpf','row_hpf_hint'); H('h_hpf_cut','row_hpf_cut_hint'); H('h_agc','row_agc_hint'); H('h_buf','row_buf_hint'); H('h_auto','row_auto_hint'); H('h_thr','row_thr_hint'); H('h_thr_mode','row_thrmode_hint'); H('h_chk','row_chk_hint'); H('h_sched','row_sched_hint'); H('h_hours','row_hours_hint'); H('h_tx','row_tx_hint'); H('h_shift','row_shift_hint'); H('h_cpu','row_cpu_hint'); H('h_level','row_level_hint'); H('h_therm_protect','row_therm_hint_protect'); H('h_therm_limit','row_therm_hint_limit');"
         "loadAll();"
@@ -323,7 +318,6 @@ static void httpStatus() {
     json += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
     json += "\"wifi_rssi\":" + String(WiFi.RSSI()) + ",";
     json += "\"wifi_tx_dbm\":" + String(wifiPowerLevelToDbm(currentWifiPowerLevel),1) + ",";
-    json += "\"wifi_tx_auto\":" + String(wifiTxAutoEnabled?"true":"false") + ",";
     json += "\"free_heap_kb\":" + String(ESP.getFreeHeap()/1024) + ",";
     json += "\"min_free_heap_kb\":" + String(minFreeHeap/1024) + ",";
     json += "\"uptime\":\"" + uptimeStr + "\",";
@@ -473,30 +467,37 @@ static inline bool argToUShort(const String &name, uint16_t &out) { if (!web.has
 static inline bool argToUChar(const String &name, uint8_t &out) { if (!web.hasArg("value")) return false; out = (uint8_t) web.arg("value").toInt(); return true; }
 
 static void httpSet() {
+    if (!web.hasArg("key") || web.arg("key").length() == 0) {
+        web.send(400, "application/json", F("{\"ok\":false,\"error\":\"missing key\"}"));
+        return;
+    }
     String key = web.arg("key");
     String val = web.hasArg("value") ? web.arg("value") : String("");
+    bool matched = false;
+    bool valid = false;
     if (val.length()) { webui_pushLog(String("UI set: ")+key+"="+val); }
-    if (key == "gain") { float v; if (argToFloat("value", v) && v>=0.1f && v<=100.0f) { currentGainFactor=v; saveAudioSettings(); restartI2S(); } }
-    else if (key == "rate") { uint32_t v; if (argToUInt("value", v) && v>=8000 && v<=48000) { currentSampleRate=v; if (autoThresholdEnabled) { minAcceptableRate = computeRecommendedMinRate(); } saveAudioSettings(); restartI2S(); } }
-    else if (key == "buffer") { uint16_t v; if (argToUShort("value", v) && v>=256 && v<=9600) { currentBufferSize=v; if (autoThresholdEnabled) { minAcceptableRate = computeRecommendedMinRate(); } saveAudioSettings(); restartI2S(); } }
+    if (key == "gain") { matched=true; float v; if (argToFloat("value", v) && v>=0.1f && v<=100.0f) { valid=true; currentGainFactor=v; saveAudioSettings(); restartI2S(); } }
+    else if (key == "rate") { matched=true; uint32_t v; if (argToUInt("value", v) && v>=8000 && v<=48000) { valid=true; currentSampleRate=v; if (autoThresholdEnabled) { minAcceptableRate = computeRecommendedMinRate(); } saveAudioSettings(); restartI2S(); } }
+    else if (key == "buffer") { matched=true; uint16_t v; if (argToUShort("value", v) && v>=256 && v<=9600) { valid=true; currentBufferSize=v; if (autoThresholdEnabled) { minAcceptableRate = computeRecommendedMinRate(); } saveAudioSettings(); restartI2S(); } }
     // i2sShiftBits removed - fixed at 0 for PDM microphones
-    else if (key == "wifi_tx") { if (!wifiTxAutoEnabled) { float v; if (argToFloat("value", v) && v>=-1.0f && v<=19.5f) { extern float wifiTxPowerDbm; wifiTxPowerDbm = snapWifiTxDbm(v); applyWifiTxPower(true); saveAudioSettings(); } } }
-    else if (key == "wifi_tx_auto") { String v=web.arg("value"); if (v=="on"||v=="off") { wifiTxAutoEnabled=(v=="on"); if (wifiTxAutoEnabled) { resetWifiAutoState(); } else { applyWifiTxPower(true); } saveAudioSettings(); } }
-    else if (key == "auto_recovery") { String v=web.arg("value"); if (v=="on"||v=="off") { autoRecoveryEnabled=(v=="on"); saveAudioSettings(); } }
-    else if (key == "thr_mode") { String v=web.arg("value"); if (v=="auto") { autoThresholdEnabled=true; minAcceptableRate = computeRecommendedMinRate(); saveAudioSettings(); } else if (v=="manual") { autoThresholdEnabled=false; saveAudioSettings(); } }
-    else if (key == "min_rate") { uint32_t v; if (argToUInt("value", v) && v>=5 && v<=200) { minAcceptableRate=v; saveAudioSettings(); } }
-    else if (key == "check_interval") { uint32_t v; if (argToUInt("value", v) && v>=1 && v<=60) { performanceCheckInterval=v; saveAudioSettings(); } }
-    else if (key == "sched_reset") { String v=web.arg("value"); if (v=="on"||v=="off") { extern bool scheduledResetEnabled; scheduledResetEnabled=(v=="on"); saveAudioSettings(); } }
-    else if (key == "reset_hours") { uint32_t v; if (argToUInt("value", v) && v>=1 && v<=168) { extern uint32_t resetIntervalHours; resetIntervalHours=v; saveAudioSettings(); } }
-    else if (key == "cpu_freq") { uint32_t v; if (argToUInt("value", v) && v>=40 && v<=240) { cpuFrequencyMhz=(uint8_t)v; setCpuFrequencyMhz(cpuFrequencyMhz); saveAudioSettings(); } }
-    else if (key == "dc_blocker") { String v=web.arg("value"); if (v=="on"||v=="off") { dcBlockerEnabled=(v=="on"); saveAudioSettings(); } }
-    else if (key == "hp_enable") { String v=web.arg("value"); if (v=="on"||v=="off") { extern bool highpassEnabled; highpassEnabled=(v=="on"); extern void updateHighpassCoeffs(); updateHighpassCoeffs(); saveAudioSettings(); } }
-    else if (key == "hp_cutoff") { uint32_t v; if (argToUInt("value", v) && v>=10 && v<=10000) { extern uint16_t highpassCutoffHz; highpassCutoffHz=(uint16_t)v; extern void updateHighpassCoeffs(); updateHighpassCoeffs(); saveAudioSettings(); } }
-    else if (key == "agc_enable") { String v=web.arg("value"); if (v=="on"||v=="off") { agcEnabled=(v=="on"); if (!agcEnabled) agcMultiplier=1.0f; saveAudioSettings(); } }
-    else if (key == "led_mode") { uint32_t v; if (argToUInt("value", v) && v<=2) { ledMode=(uint8_t)v; saveAudioSettings(); } }
-    else if (key == "oh_enable") { String v=web.arg("value"); if (v=="on"||v=="off") { overheatProtectionEnabled = (v=="on"); if (!overheatProtectionEnabled) { overheatLockoutActive = false; } saveAudioSettings(); } }
-    else if (key == "oh_limit") { uint32_t v; if (argToUInt("value", v) && v>=OH_MIN && v<=OH_MAX) { uint32_t snapped = OH_MIN + ((v - OH_MIN)/OH_STEP)*OH_STEP; overheatShutdownC = (float)snapped; overheatLockoutActive = false; saveAudioSettings(); } }
-    else if (key == "hostname") { String v=val; v.trim(); if (v.length()>=1 && v.length()<=63) { mdnsHostname=v; saveAudioSettings(); scheduleReboot(false, 600); } }
+    else if (key == "wifi_tx") { matched=true; float v; if (argToFloat("value", v) && v>=-1.0f && v<=19.5f) { valid=true; extern float wifiTxPowerDbm; wifiTxPowerDbm = snapWifiTxDbm(v); applyWifiTxPower(true); saveAudioSettings(); } }
+    else if (key == "auto_recovery") { matched=true; String v=web.arg("value"); if (v=="on"||v=="off") { valid=true; autoRecoveryEnabled=(v=="on"); saveAudioSettings(); } }
+    else if (key == "thr_mode") { matched=true; String v=web.arg("value"); if (v=="auto") { valid=true; autoThresholdEnabled=true; minAcceptableRate = computeRecommendedMinRate(); saveAudioSettings(); } else if (v=="manual") { valid=true; autoThresholdEnabled=false; saveAudioSettings(); } }
+    else if (key == "min_rate") { matched=true; uint32_t v; if (argToUInt("value", v) && v>=5 && v<=200) { valid=true; minAcceptableRate=v; saveAudioSettings(); } }
+    else if (key == "check_interval") { matched=true; uint32_t v; if (argToUInt("value", v) && v>=1 && v<=60) { valid=true; performanceCheckInterval=v; saveAudioSettings(); } }
+    else if (key == "sched_reset") { matched=true; String v=web.arg("value"); if (v=="on"||v=="off") { valid=true; extern bool scheduledResetEnabled; scheduledResetEnabled=(v=="on"); saveAudioSettings(); } }
+    else if (key == "reset_hours") { matched=true; uint32_t v; if (argToUInt("value", v) && v>=1 && v<=168) { valid=true; extern uint32_t resetIntervalHours; resetIntervalHours=v; saveAudioSettings(); } }
+    else if (key == "cpu_freq") { matched=true; uint32_t v; if (argToUInt("value", v) && v>=40 && v<=240) { valid=true; cpuFrequencyMhz=(uint8_t)v; setCpuFrequencyMhz(cpuFrequencyMhz); saveAudioSettings(); } }
+    else if (key == "dc_blocker") { matched=true; String v=web.arg("value"); if (v=="on"||v=="off") { valid=true; dcBlockerEnabled=(v=="on"); saveAudioSettings(); } }
+    else if (key == "hp_enable") { matched=true; String v=web.arg("value"); if (v=="on"||v=="off") { valid=true; extern bool highpassEnabled; highpassEnabled=(v=="on"); extern void updateHighpassCoeffs(); updateHighpassCoeffs(); saveAudioSettings(); } }
+    else if (key == "hp_cutoff") { matched=true; uint32_t v; if (argToUInt("value", v) && v>=10 && v<=10000) { valid=true; extern uint16_t highpassCutoffHz; highpassCutoffHz=(uint16_t)v; extern void updateHighpassCoeffs(); updateHighpassCoeffs(); saveAudioSettings(); } }
+    else if (key == "agc_enable") { matched=true; String v=web.arg("value"); if (v=="on"||v=="off") { valid=true; agcEnabled=(v=="on"); if (!agcEnabled) agcMultiplier=1.0f; saveAudioSettings(); } }
+    else if (key == "led_mode") { matched=true; uint32_t v; if (argToUInt("value", v) && v<=2) { valid=true; ledMode=(uint8_t)v; saveAudioSettings(); } }
+    else if (key == "oh_enable") { matched=true; String v=web.arg("value"); if (v=="on"||v=="off") { valid=true; overheatProtectionEnabled = (v=="on"); if (!overheatProtectionEnabled) { overheatLockoutActive = false; } saveAudioSettings(); } }
+    else if (key == "oh_limit") { matched=true; uint32_t v; if (argToUInt("value", v) && v>=OH_MIN && v<=OH_MAX) { valid=true; uint32_t snapped = OH_MIN + ((v - OH_MIN)/OH_STEP)*OH_STEP; overheatShutdownC = (float)snapped; overheatLockoutActive = false; saveAudioSettings(); } }
+    else if (key == "hostname") { matched=true; String v=val; v.trim(); if (v.length()>=1 && v.length()<=63) { valid=true; mdnsHostname=v; saveAudioSettings(); scheduleReboot(false, 600); } }
+    if (!matched) { web.send(400, "application/json", F("{\"ok\":false,\"error\":\"unknown key\"}")); return; }
+    if (!valid) { web.send(400, "application/json", F("{\"ok\":false,\"error\":\"invalid value\"}")); return; }
     apiSendJSON(F("{\"ok\":true}"));
 }
 
