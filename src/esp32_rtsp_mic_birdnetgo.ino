@@ -6,6 +6,7 @@
 #include <math.h>
 #include <M5Atom.h>
 #include "WebUI.h"
+#include <sys/socket.h>
 
 // ================== DUAL-CORE AUDIO ARCHITECTURE ==================
 // Core 1: Audio pipeline (I2S capture → process → enqueue AudioFrame)
@@ -1116,23 +1117,8 @@ void setup_i2s_driver() {
 
 static bool writeAll(WiFiClient &client, const uint8_t* data, size_t len) {
     size_t off = 0;
-    unsigned long startTime = millis();
-    const unsigned long WRITE_TIMEOUT_MS = 200;
-
     while (off < len) {
-        if (millis() - startTime > WRITE_TIMEOUT_MS) return false;
-
-        // Only write what the send buffer can accept right now.
-        // client.write() blocks until ACKs arrive when the buffer is full and
-        // the remote is gone — bypassing the millis() timeout above.
-        // availableForWrite() bounds the write to non-blocking territory.
-        size_t avail = client.availableForWrite();
-        if (avail == 0) {
-            vTaskDelay(1);  // yield and retry
-            continue;
-        }
-        size_t chunk = min(avail, len - off);
-        int w = client.write(data + off, chunk);
+        int w = client.write(data + off, len - off);
         if (w <= 0) return false;
         off += (size_t)w;
     }
@@ -1639,6 +1625,10 @@ void loop() {
                 if (newClient) {
                     rtspClient = newClient;
                     rtspClient.setNoDelay(true);
+                    // Enforce a 200ms send timeout at the socket level so write() returns
+                    // promptly on a dead connection instead of blocking until TCP gives up.
+                    struct timeval tv = {0, 200000};
+                    setsockopt(rtspClient.fd(), SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
                     rtspParseBufferPos = 0;
                     lastRTSPActivity = millis();
                     lastRtspClientConnectMs = millis();
