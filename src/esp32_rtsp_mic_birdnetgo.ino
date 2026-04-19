@@ -1096,18 +1096,17 @@ void setup_i2s_driver() {
 }
 
 static bool writeAll(WiFiClient &client, const uint8_t* data, size_t len) {
+    // SO_SNDTIMEO resets on partial progress, so enforce a hard wall-clock deadline.
+    // A slow-draining client can otherwise block Core0 for tens of seconds.
+    static const unsigned long WRITE_DEADLINE_MS = 2000;
+    unsigned long deadline = millis() + WRITE_DEADLINE_MS;
     size_t off = 0;
     while (off < len) {
-        unsigned long t0 = millis();
-        int w = client.write(data + off, len - off);
-        unsigned long dt = millis() - t0;
-        if (dt > 100) {
-            static unsigned long lastSlowLog = 0;
-            if (millis() - lastSlowLog > 2000) {
-                Serial.printf("[Core0] Slow write: %lums for %u bytes\n", dt, (unsigned)(len - off));
-                lastSlowLog = millis();
-            }
+        if (millis() > deadline) {
+            Serial.printf("[Core0] Write deadline exceeded (%lums), disconnecting\n", WRITE_DEADLINE_MS);
+            return false;
         }
+        int w = client.write(data + off, len - off);
         if (w <= 0) return false;
         off += (size_t)w;
     }
