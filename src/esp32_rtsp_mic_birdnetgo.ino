@@ -1046,7 +1046,7 @@ void setup_i2s_driver() {
         .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
         .dma_buf_count = 8,     // 8×192=1536 samples=32ms ring (was 6×180=22.5ms)
         .dma_buf_len = dma_buf_len,
-        .use_apll = false,
+        .use_apll = true,
         .tx_desc_auto_clear = false,
         .fixed_mclk = 0
     };
