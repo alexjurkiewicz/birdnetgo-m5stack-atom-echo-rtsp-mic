@@ -1512,13 +1512,9 @@ void loop() {
 
     webui_handleClient();
 
-    // Drain audio frames from Core 1 and send via WiFi (Core 0 owns socket)
-    {
-        int drained = 0;
-        while (uxQueueMessagesWaiting(audioReadyQueue) > 0 && drained < AUDIO_POOL_DEPTH) {
-            sendFrameRTP();
-            drained++;
-        }
+    // Drain one audio frame per loop() so HTTP requests aren't starved
+    if (uxQueueMessagesWaiting(audioReadyQueue) > 0) {
+        sendFrameRTP();
     }
 
     if (millis() - lastTempCheck > 60000) { // 1 min
