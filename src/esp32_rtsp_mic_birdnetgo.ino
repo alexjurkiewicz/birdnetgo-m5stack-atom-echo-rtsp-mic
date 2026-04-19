@@ -1096,6 +1096,14 @@ void setup_i2s_driver() {
 }
 
 static bool writeAll(WiFiClient &client, const uint8_t* data, size_t len) {
+    int avail = client.availableForWrite();
+    if (avail < (int)len) {
+        static unsigned long lastBufLog = 0;
+        if (millis() - lastBufLog > 2000) {
+            Serial.printf("[Core0] TCP send buf low: avail=%d need=%u\n", avail, (unsigned)len);
+            lastBufLog = millis();
+        }
+    }
     size_t off = 0;
     while (off < len) {
         int w = client.write(data + off, len - off);
