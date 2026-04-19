@@ -710,6 +710,13 @@ static String logTimestamp() {
     return String(buf);
 }
 
+static void fillTimestamp(char* buf, size_t len) {
+    unsigned long s = (millis() - bootTime) / 1000;
+    unsigned long h = s / 3600; s %= 3600;
+    unsigned long m = s / 60;   s %= 60;
+    snprintf(buf, len, "[%02lu:%02lu:%02lu] ", h, m, s);
+}
+
 void simplePrint(String message) {
     Serial.print(logTimestamp() + message);
 }
@@ -741,7 +748,7 @@ void drainRtspReceiveBuffer(WiFiClient &client) {
 // Core 1 never touches the socket. Sends processed frames to audioReadyQueue.
 // IMPORTANT: No String allocation or simplePrintln on this core (heap contention)
 void audioCaptureTask(void* parameter) {
-    Serial.println("[Core1] Audio pipeline task started");
+    { char ts[16]; fillTimestamp(ts, sizeof(ts)); Serial.printf("%s[Core1] Audio pipeline task started\n", ts); }
     audioTaskRunning = true;
 
     size_t bytesRead = 0;
@@ -753,7 +760,7 @@ void audioCaptureTask(void* parameter) {
     int16_t* outputBuffer = (int16_t*)malloc(currentBufferSize * sizeof(int16_t));
 
     if (!captureBuffer || !outputBuffer) {
-        Serial.println("[Core1] FATAL: Failed to allocate audio buffers!");
+        { char ts[16]; fillTimestamp(ts, sizeof(ts)); Serial.printf("%s[Core1] FATAL: Failed to allocate audio buffers!\n", ts); }
         if (captureBuffer) free(captureBuffer);
         if (outputBuffer) free(outputBuffer);
         audioTaskRunning = false;
@@ -818,7 +825,7 @@ void audioCaptureTask(void* parameter) {
                 consecutiveErrors++;
                 i2sErrors++;
                 if (consecutiveErrors >= MAX_ERRORS) {
-                    Serial.println("[Core1] Too many I2S errors, pausing");
+                    { char ts[16]; fillTimestamp(ts, sizeof(ts)); Serial.printf("%s[Core1] Too many I2S errors, pausing\n", ts); }
                     vTaskDelay(pdMS_TO_TICKS(100));
                     consecutiveErrors = 0;
                 }
@@ -896,8 +903,9 @@ void audioCaptureTask(void* parameter) {
             audioClipCount++;
             static unsigned long lastClipLog = 0;
             if (millis() - lastClipLog > 5000) {
-                Serial.printf("[Core1] Clipping! Peak=%u count=%lu\n",
-                             lastPeakAbs16, audioClipCount);
+                char ts[16]; fillTimestamp(ts, sizeof(ts));
+                Serial.printf("%s[Core1] Clipping! Peak=%u count=%lu\n",
+                             ts, lastPeakAbs16, audioClipCount);
                 lastClipLog = millis();
             }
         }
@@ -965,7 +973,7 @@ void audioCaptureTask(void* parameter) {
     free(outputBuffer);
     core1OwnsLED = false;
     audioTaskRunning = false;
-    Serial.println("[Core1] Audio pipeline task stopped");
+    { char ts[16]; fillTimestamp(ts, sizeof(ts)); Serial.printf("%s[Core1] Audio pipeline task stopped\n", ts); }
     xSemaphoreGive(taskExitSemaphore);
     vTaskDelete(NULL);
 }
@@ -998,7 +1006,8 @@ void stopAudioCaptureTask() {
         audioTaskRunning = false;
         // Wait for task to confirm exit (up to 2s)
         if (xSemaphoreTake(taskExitSemaphore, pdMS_TO_TICKS(2000)) != pdTRUE) {
-            Serial.println("[Core0] WARNING: Audio task did not exit within 2s");
+            char ts[16]; fillTimestamp(ts, sizeof(ts));
+            Serial.printf("%s[Core0] WARNING: Audio task did not exit within 2s\n", ts);
         }
         audioCaptureTaskHandle = NULL;
     }
@@ -1007,7 +1016,7 @@ void stopAudioCaptureTask() {
 bool requestStreamStop(const char* reason) {
     if (!isStreaming) return true;
 
-    Serial.printf("[Core0] requestStreamStop: %s\n", reason);
+    { char ts[16]; fillTimestamp(ts, sizeof(ts)); Serial.printf("%s[Core0] requestStreamStop: %s\n", ts, reason); }
 
     stopStreamRequested = true;
     __asm__ __volatile__("memw" ::: "memory");
@@ -1028,9 +1037,11 @@ bool requestStreamStop(const char* reason) {
     }
 
     if (!clean) {
-        Serial.printf("[Core0] WARNING: Stream stop timeout, forced: %s\n", reason);
+        char ts[16]; fillTimestamp(ts, sizeof(ts));
+        Serial.printf("%s[Core0] WARNING: Stream stop timeout, forced: %s\n", ts, reason);
     } else {
-        Serial.printf("[Core0] Stream stopped cleanly: %s\n", reason);
+        char ts[16]; fillTimestamp(ts, sizeof(ts));
+        Serial.printf("%s[Core0] Stream stopped cleanly: %s\n", ts, reason);
     }
     return clean;
 }
@@ -1105,7 +1116,7 @@ static bool writeAll(WiFiClient &client, const uint8_t* data, size_t len) {
     size_t off = 0;
     while (off < len) {
         if (millis() > deadline) {
-            Serial.printf("[Core0] Write deadline exceeded, closing connection\n");
+            { char ts[16]; fillTimestamp(ts, sizeof(ts)); Serial.printf("%s[Core0] Write deadline exceeded, closing connection\n", ts); }
             client.stop();
             return false;
         }
@@ -1179,7 +1190,7 @@ void sendRTPPacket(WiFiClient &client, int16_t* audioData, int numSamples) {
         consecutiveWriteFailures++;
 
         if (consecutiveWriteFailures >= MAX_WRITE_FAILURES) {
-            Serial.printf("[Core0] %u consecutive write failures — TCP stack unrecoverable, restarting\n", consecutiveWriteFailures);
+            { char ts[16]; fillTimestamp(ts, sizeof(ts)); Serial.printf("%s[Core0] %u consecutive write failures — TCP stack unrecoverable, restarting\n", ts, consecutiveWriteFailures); }
             delay(200);
             ESP.restart();
         }
@@ -1387,7 +1398,7 @@ void setup() {
 
     bootTime = millis(); // Store boot time
     rtpSSRC = (uint32_t)random(1, 0x7FFFFFFF);
-    Serial.println("Random seed initialized");
+    simplePrintln("Random seed initialized");
 
     // Enable external antenna (for XIAO ESP32-C6).
     // NOTE: Commented out for M5Stack STAMP S3 - no external antenna control needed
@@ -1399,15 +1410,15 @@ void setup() {
     // Serial.println("External antenna selected (GPIO14 HIGH)");
 
     // Load settings from flash
-    Serial.println("Loading settings...");
+    simplePrintln("Loading settings...");
     loadAudioSettings();
-    Serial.println("Settings loaded");
+    simplePrintln("Settings loaded");
 
     // Note: Audio buffers now allocated by Core 1 task (not in main)
-    Serial.println("Audio buffers will be allocated by Core 1 pipeline task");
+    simplePrintln("Audio buffers will be allocated by Core 1 pipeline task");
 
     // WiFi optimization for stable streaming
-    Serial.println("Initializing WiFi...");
+    simplePrintln("Initializing WiFi...");
     WiFi.setSleep(false);
     WiFi.setHostname(mdnsHostname.c_str());
 
@@ -1423,7 +1434,7 @@ void setup() {
 
     // NTP time sync (EST = UTC-5, no DST)
     configTime(-5 * 3600, 0, "pool.ntp.org");
-    Serial.print("Waiting for NTP time sync...");
+    simplePrintln("Waiting for NTP time sync...");
     time_t now = 0;
     for (int i = 0; i < 20 && now < 100000; i++) {
         delay(250);
@@ -1434,9 +1445,9 @@ void setup() {
         localtime_r(&now, &ti);
         char buf[32];
         strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &ti);
-        Serial.printf(" OK: %s EST\n", buf);
+        simplePrintln("NTP sync OK: " + String(buf) + " EST");
     } else {
-        Serial.println(" failed (will use uptime)");
+        simplePrintln("NTP sync failed (will use uptime)");
     }
 
     applyWifiTxPower(true);
@@ -1447,16 +1458,16 @@ void setup() {
         simplePrintln("mDNS: " + mdnsHostname + ".local");
     }
 
-    Serial.println("Setting up I2S driver...");
+    simplePrintln("Setting up I2S driver...");
     setup_i2s_driver();
-    Serial.println("I2S driver ready");
+    simplePrintln("I2S driver ready");
 
     // Audio pipeline task will be created when RTSP streaming begins (on PLAY command)
-    Serial.println("Dual-core audio ready (Core 1 pipeline will start on RTSP PLAY)");
+    simplePrintln("Dual-core audio ready (Core 1 pipeline will start on RTSP PLAY)");
 
-    Serial.println("Updating highpass coefficients...");
+    simplePrintln("Updating highpass coefficients...");
     updateHighpassCoeffs();
-    Serial.println("Highpass coefficients updated");
+    simplePrintln("Highpass coefficients updated");
 
     if (!overheatLatched) {
         rtspServer.begin();
@@ -1552,7 +1563,7 @@ void loop() {
 
     // Heap monitoring (every 10 minutes — useful for detecting leaks in long deployments)
     if (millis() - lastMemoryCheck > 600000) { // 10 min
-        Serial.printf("[Heap] Current: %u KB, Min: %u KB\n", ESP.getFreeHeap() / 1024, minFreeHeap / 1024);
+        { char ts[16]; fillTimestamp(ts, sizeof(ts)); Serial.printf("%s[Heap] Current: %u KB, Min: %u KB\n", ts, ESP.getFreeHeap() / 1024, minFreeHeap / 1024); }
         lastMemoryCheck = millis();
     }
 
