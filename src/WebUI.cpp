@@ -7,7 +7,7 @@
 // External variables and functions from main (.ino) – ESP32 RTSP Mic for BirdNET-Go
 extern WiFiServer rtspServer;
 extern WiFiClient rtspClient;
-extern volatile bool isStreaming;
+extern TaskHandle_t rtspSenderTaskHandle;
 extern uint16_t rtpSequence;
 extern uint32_t rtpTimestamp;
 extern unsigned long lastStatsReset;
@@ -313,7 +313,7 @@ static void httpStatus() {
     unsigned long uptimeSeconds = (millis() - bootTime) / 1000;
     String uptimeStr = formatUptime(uptimeSeconds);
     unsigned long runtime = millis() - lastStatsReset;
-    uint32_t currentRate = (isStreaming && runtime > 1000) ? (audioPacketsSent * 1000) / runtime : 0;
+    uint32_t currentRate = (rtspSenderTaskHandle != NULL && runtime > 1000) ? (audioPacketsSent * 1000) / runtime : 0;
     String json = "{";
     json += "\"fw_version\":\"" + String(FW_VERSION_STR) + "\",";
     json += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
@@ -324,7 +324,7 @@ static void httpStatus() {
     json += "\"uptime\":\"" + uptimeStr + "\",";
     json += "\"rtsp_server_enabled\":" + String(rtspServerEnabled?"true":"false") + ",";
     if (rtspClient && rtspClient.connected()) json += "\"client\":\"" + rtspClient.remoteIP().toString() + "\","; else json += "\"client\":\"\",";
-    json += "\"streaming\":" + String(isStreaming?"true":"false") + ",";
+    json += "\"streaming\":" + String(rtspSenderTaskHandle != NULL ? "true" : "false") + ",";
     if (lastTemperatureValid) json += "\"temp_c\":" + String(lastTemperatureC, 1) + ",";
     json += "\"dropped_packets\":" + String(audioPacketsDropped) + ",";
     json += "\"current_rate_pkt_s\":" + String(currentRate) + ",";
@@ -451,7 +451,7 @@ static void httpActionServerStart(){
 }
 extern bool requestStreamStop(const char* reason);
 static void httpActionServerStop(){
-    if (isStreaming) {
+    if (rtspSenderTaskHandle != NULL) {
         requestStreamStop("server_stop");
     }
     rtspServerEnabled=false;

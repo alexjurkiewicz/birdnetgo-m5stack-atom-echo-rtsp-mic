@@ -16,12 +16,6 @@ See `README.md` for project documentation, features, architecture, and usage.
 - If it gets set to any other value, all audio becomes zeros (e.g., `180 >> 11 = 0`)
 - Web UI shows it as read-only: "0 bits (fixed for PDM)"
 
-### Socket Ownership Model
-- Core 0 exclusively owns the WiFiClient (`rtspClient`) at all times
-- Core 1 never touches the socket — it only enqueues processed `AudioFrame*` pointers to `audioReadyQueue`
-- Use `requestStreamStop()` for Core 0 to signal Core 1 to stop producing frames; Core 0 then closes the socket
-- Task shutdown uses a FreeRTOS semaphore with 2s timeout (confirmed exit pattern)
-
 ### DMA Buffer Alignment (dma_buf_len must divide currentBufferSize)
 - `dma_buf_len` = `currentSampleRate / 250` → 192 at 48 kHz
 - `DEFAULT_BUFFER_SIZE` (3072) / 192 = 16 exactly — no partial-buffer seam
