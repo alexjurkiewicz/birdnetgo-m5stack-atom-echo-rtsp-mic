@@ -3,3 +3,4 @@
 .claude/
 .actrc
 .worktrees/
+src/webui_html.h
