@@ -947,25 +947,17 @@ void audioCaptureTask(void* parameter) {
     vTaskDelete(NULL);
 }
 
-void startAudioCaptureTask() {
-    BaseType_t result = xTaskCreatePinnedToCore(
-        audioCaptureTask, "AudioPipeline", 8192, NULL, 10,
-        &audioCaptureTaskHandle, 1);
-    if (result != pdPASS) {
-        simplePrintln("[Core1] FATAL: Failed to create audio pipeline task!");
-        return;
-    }
-    audioTaskRunning = true;
-}
-
 // Stop audio pipeline task with confirmed exit via semaphore
 void stopAudioCaptureTask() {
     if (audioCaptureTaskHandle != NULL) {
         audioTaskRunning = false;
-        // Wait for task to confirm exit (up to 2s)
-        if (xSemaphoreTake(taskExitSemaphore, pdMS_TO_TICKS(2000)) != pdTRUE) {
+        __asm__ __volatile__("memw" ::: "memory");
+        bool taskExited = (xSemaphoreTake(taskExitSemaphore, pdMS_TO_TICKS(2000)) == pdTRUE);
+        if (!taskExited) {
             char ts[16]; fillTimestamp(ts, sizeof(ts));
-            Serial.printf("%s[Core0] WARNING: Audio task did not exit within 2s\n", ts);
+            Serial.printf("%s[Core0] WARNING: Audio task did not exit within 2s, force-killing\n", ts);
+            vTaskDelete(audioCaptureTaskHandle);
+            xSemaphoreTake(taskExitSemaphore, 0);  // drain potential give
         }
         audioCaptureTaskHandle = NULL;
     }
@@ -993,6 +985,7 @@ bool requestStreamStop(const char* reason) {
     __asm__ __volatile__("memw" ::: "memory");
 
     stopAudioCaptureTask();
+    rtspParseBufferPos = 0;
 
     if (!core1OwnsLED) {
         if (ledMode > 0) M5.dis.drawpix(0, CRGB(0, 0, 128));
@@ -1347,8 +1340,8 @@ void handleRTSPCommand(WiFiClient &client, String request) {
     }
 }
 
-// RTSP processing (runs on Core 0). Called during both negotiation and streaming
-// so that TEARDOWN and GET_PARAMETER are handled while audio is active.
+// RTSP processing (runs on Core 0). Called during pre-PLAY negotiation only
+// (OPTIONS, DESCRIBE, SETUP, PLAY). During streaming, rtspSenderTask handles RTSP control.
 void processRTSP(WiFiClient &client) {
     if (!client.connected()) return;
 
