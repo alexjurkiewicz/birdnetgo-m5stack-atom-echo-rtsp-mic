@@ -2,6 +2,7 @@
 #include <math.h>
 #include <WiFi.h>
 #include <WebServer.h>
+#include <WiFiManager.h>
 #include "WebUI.h"
 
 // External variables and functions from main (.ino) – ESP32 RTSP Mic for BirdNET-Go
@@ -187,6 +188,7 @@ static void httpIndex() {
         "<button onclick=\"act('reset_i2s')\" id='b_reset'>Reset I2S</button>"
         "<button onclick=\"rebootNow()\" id='b_reboot'>Reboot</button>"
         "<button onclick=\"defaultsNow()\" id='b_defaults'>Defaults</button>"
+        "<button onclick=\"reconfigWifiNow()\" id='b_wifi'>WiFi Setup</button>"
         "<div id='adv' class='footer muted'></div></div>"
 
         "<div class='card'><h2 id='t_audio'>Audio</h2><table>"
@@ -279,6 +281,7 @@ static void httpIndex() {
         "function act(a){fetch('/api/action/'+a,{cache:'no-store'}).then(r=>r.json()).then(loadAll)}"
         "function rebootNow(){ rebootSequence('reboot'); act('reboot'); }"
         "function defaultsNow(){ rebootSequence('factory_reset'); act('factory_reset'); }"
+        "function reconfigWifiNow(){ if(!confirm('This will erase stored WiFi credentials and reboot into setup portal.\\nConnect to \\'ESP32-RTSP-Mic-AP\\' after reboot.')) return; showOverlay('Rebooting into WiFi setup...\\nConnect to ESP32-RTSP-Mic-AP'); act('reconfigure_wifi'); }"
         "const locks={}; const edits={};"
         "function setv(k,v){v=String(v?\?'').trim().replace(',', '.'); if(v==='')return; locks[k]=Date.now()+5000; delete edits[k]; fetch('/api/set?key='+encodeURIComponent(k)+'&value='+encodeURIComponent(v),{cache:'no-store'}).then(r=>r.json()).then(loadAll)}"
         "function bindSaver(el,key){if(!el)return; el.addEventListener('keydown',e=>{if(e.key==='Enter'){setv(key,el.value)}})}"
@@ -517,6 +520,7 @@ void webui_begin() {
     web.on("/api/action/reset_i2s", httpActionResetI2S);
     web.on("/api/action/reboot", [](){ webui_pushLog(F("UI action: reboot")); apiSendJSON(F("{\"ok\":true}")); scheduleReboot(false, 600); });
     web.on("/api/action/factory_reset", [](){ webui_pushLog(F("UI action: factory_reset")); apiSendJSON(F("{\"ok\":true}")); scheduleReboot(true, 600); });
+    web.on("/api/action/reconfigure_wifi", [](){ webui_pushLog(F("UI action: reconfigure_wifi")); apiSendJSON(F("{\"ok\":true}")); WiFiManager wm; wm.resetSettings(); scheduleReboot(false, 600); });
     web.on("/api/set", httpSet);
     web.begin();
 }

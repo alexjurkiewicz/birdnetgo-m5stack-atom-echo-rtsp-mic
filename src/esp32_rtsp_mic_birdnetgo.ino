@@ -47,8 +47,8 @@ const char* FW_VERSION_STR = FW_VERSION;
                                    // SPM1423 PDM clock = 48000 × 64 = 3.072 MHz (spec: 1.0–3.25 MHz)
                                    // Hard max 48 kHz: 96 kHz pushes PDM clock to 6.144 MHz (2× over spec)
 #define DEFAULT_GAIN_FACTOR 3.0f
-#define DEFAULT_BUFFER_SIZE 9600   // 200ms @ 48kHz - larger buffer = lower click artifact rate
-#define MAX_BUFFER_SIZE     9600   // 200ms @ 48kHz - upper limit; heap-allocated at startup
+#define DEFAULT_BUFFER_SIZE 6144   // 128ms @ 48kHz
+#define MAX_BUFFER_SIZE     6144   // upper limit; heap-allocated at startup
 #define DEFAULT_WIFI_TX_DBM 19.5f  // Default WiFi TX power in dBm
 
 // Heap-allocated sample storage for the pool (avoids BSS overflow for large buffers)
@@ -1069,7 +1069,8 @@ static bool writeAll(int sock, const uint8_t* data, size_t len) {
 }
 
 bool sendRTPPacket(WiFiClient &client, int16_t* audioData, int numSamples) {
-    if (!client.connected()) return false;
+    int sock = client.fd();
+    if (sock < 0) return false;
 
     const uint16_t payloadSize = (uint16_t)(numSamples * (int)sizeof(int16_t));
     const uint16_t packetSize = (uint16_t)(12 + payloadSize);
@@ -1100,7 +1101,6 @@ bool sendRTPPacket(WiFiClient &client, int16_t* audioData, int numSamples) {
         audioData[i] = (int16_t)s;
     }
 
-    int sock = client.fd();
     bool success = sock >= 0 &&
                    writeAll(sock, inter, sizeof(inter)) &&
                    writeAll(sock, header, sizeof(header)) &&
@@ -1136,7 +1136,7 @@ void rtspSenderTask(void* parameter) {
     int ctrlBufPos = 0;
 
     while (!stopStreamRequested) {
-        if (sock < 0 || !rtspClient.connected()) break;
+        if (sock < 0) break;
 
         fd_set rfds, wfds;
         FD_ZERO(&rfds);
@@ -1154,15 +1154,11 @@ void rtspSenderTask(void* parameter) {
 
         // Handle incoming RTSP control (TEARDOWN, GET_PARAMETER keepalive)
         if (sel > 0 && FD_ISSET(sock, &rfds)) {
-            int avail = rtspClient.available();
-            if (avail <= 0) break; // connection closed
             int space = (int)sizeof(ctrlBuf) - ctrlBufPos - 1;
-            if (avail > space) avail = space;
-            if (avail > 0) {
-                rtspClient.read(ctrlBuf + ctrlBufPos, avail);
-                ctrlBufPos += avail;
-                ctrlBuf[ctrlBufPos] = '\0';
-            }
+            int n = recv(sock, ctrlBuf + ctrlBufPos, space > 0 ? space : 0, MSG_DONTWAIT);
+            if (n <= 0) break; // connection closed or error
+            ctrlBufPos += n;
+            ctrlBuf[ctrlBufPos] = '\0';
 
             // Buffer full with no complete message — oversized request, reset and skip
             if (ctrlBufPos >= (int)sizeof(ctrlBuf) - 1) {
@@ -1224,6 +1220,8 @@ void rtspSenderTask(void* parameter) {
       Serial.printf("%s[Sender] Stream ended (session %lus, sent=%lu dropped=%lu)\n",
                     ts, sessionSec, audioPacketsSent, audioPacketsDropped); }
 
+    audioTaskRunning = false;
+    __asm__ __volatile__("memw" ::: "memory");
     xSemaphoreGive(senderExitSemaphore);
     vTaskDelete(NULL);
 }
@@ -1569,9 +1567,29 @@ void setup() {
     simplePrintln("Web UI: http://" + WiFi.localIP().toString() + "/");
 }
 
+static void handleSerialCommand(char cmd) {
+    char ts[16]; fillTimestamp(ts, sizeof(ts));
+    if (cmd == 'd' || cmd == 'D') {
+        Serial.printf("%s[Diag] Free heap: %u B  Min ever: %u B  Largest block: %u B\n",
+            ts, ESP.getFreeHeap(), ESP.getMinFreeHeap(),
+            heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+        Serial.printf("%s[Diag] WiFi status: %d  RSSI: %d dBm\n", ts, (int)WiFi.status(), (int)WiFi.RSSI());
+        Serial.printf("%s[Diag] audioTaskRunning=%d  stopStreamRequested=%d\n",
+            ts, (int)audioTaskRunning, (int)stopStreamRequested);
+        Serial.printf("%s[Diag] Stack watermarks (words free): loop=%u audio=%u sender=%u\n", ts,
+            uxTaskGetStackHighWaterMark(NULL),
+            audioCaptureTaskHandle ? uxTaskGetStackHighWaterMark(audioCaptureTaskHandle) : 0,
+            rtspSenderTaskHandle   ? uxTaskGetStackHighWaterMark(rtspSenderTaskHandle)   : 0);
+    }
+}
+
 void loop() {
     // Update M5Atom (for button and LED handling)
     M5.update();
+
+    if (Serial.available()) {
+        handleSerialCommand((char)Serial.read());
+    }
 
     webui_handleClient();
 
@@ -1655,7 +1673,7 @@ void loop() {
                 if (newClient) {
                     rtspClient = newClient;
                     rtspClient.setNoDelay(true);
-                    struct timeval tv = {2, 0};
+                    struct timeval tv = {8, 0};
                     setsockopt(rtspClient.fd(), SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
                     rtspParseBufferPos = 0;
                     lastRTSPActivity = millis();
