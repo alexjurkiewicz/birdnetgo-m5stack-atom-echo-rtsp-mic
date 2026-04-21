@@ -767,17 +767,6 @@ function formatLevel(audio) {
   `;
 }
 
-function formatThermalStatus(thermal) {
-  if (!thermal) return renderPill(t("common.loading"), "neutral");
-  if (thermal.sensor_fault) return renderPill(t("thermal.status_sensor_fault"), "warn");
-  if (thermal.latched_persist) return renderPill(t("thermal.status_latched_persist"), "warn");
-  if (!thermal.protection_enabled) return renderPill(t("thermal.status_disabled"), "bad");
-  if (thermal.manual_restart || thermal.latched) {
-    return renderPill(t("thermal.status_latched"), "warn");
-  }
-  return renderPill(t("thermal.status_ready"), "ok");
-}
-
 function formatThermalLast(thermal) {
   if (!thermal) return t("common.loading");
   if (thermal.sensor_fault) return t("thermal.last_sensor_fault");
@@ -821,7 +810,11 @@ function summaryTiles() {
     },
     {
       label: t("app.summary.temperature"),
-      value: d?.current_valid ? formatTemperature(d.current_c) : t("common.na"),
+      value: d
+        ? (d.current_valid ? formatTemperature(d.current_c) : t("common.na")) +
+          " / " +
+          formatTemperature(d?.max_c)
+        : t("common.loading"),
     },
   ];
 }
@@ -869,6 +862,7 @@ function renderStatusRows() {
     ],
     [t("status.last_connect"), d?.last_rtsp_connect || t("common.waiting")],
     [t("status.last_play"), d?.last_stream_start || t("common.waiting")],
+    [t("thermal.last"), d ? formatThermalLast(d) : t("common.loading")],
   ];
 }
 
@@ -1715,24 +1709,6 @@ function ThermalCard() {
               limitValue=${limitValue}
             />
           `}
-        />
-      </div>
-
-      <div style="margin-top: 1.6rem;">
-        <${DataTable}
-          rows=${[
-            [t("thermal.status"), formatThermalStatus(d)],
-            [
-              t("thermal.current"),
-              d?.current_valid ? formatTemperature(d.current_c) : t("common.na"),
-            ],
-            [t("thermal.peak"), formatTemperature(d?.max_c)],
-            [
-              t("thermal.cpu"),
-              d ? `${d.cpu_mhz} MHz` : t("common.loading"),
-            ],
-            [t("thermal.last"), formatThermalLast(d)],
-          ]}
         />
       </div>
 
