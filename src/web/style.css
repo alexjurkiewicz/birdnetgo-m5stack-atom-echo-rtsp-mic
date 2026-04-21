@@ -529,6 +529,10 @@ button.button-pending:disabled:hover {
   align-items: center;
 }
 
+.logs-actions .card-intro {
+  margin: 0;
+}
+
 .logs-frame {
   margin: 0;
   padding: 1.4rem;

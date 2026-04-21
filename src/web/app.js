@@ -1705,14 +1705,13 @@ function LogsCard() {
   return html`
     <section class="card card-full-width">
       <h2>${t("section.logs")}</h2>
-      <p class="card-intro">${t("logs.help")}</p>
+      <div class="logs-actions">
+        <p class="card-intro">${t("logs.help")}</p>
+        <button class="button button-outline" onClick=${copyLogs}>
+          ${t(state.copyLabelKey)}
+        </button>
+      </div>
       <div class="logs-panel">
-        <div class="logs-actions">
-          <span class="small-note mono">/api/state</span>
-          <button class="button button-outline" onClick=${copyLogs}>
-            ${t(state.copyLabelKey)}
-          </button>
-        </div>
         <pre class="logs-frame mono">${state.data?.logs?.join("\n") ?? ""}</pre>
       </div>
     </section>
