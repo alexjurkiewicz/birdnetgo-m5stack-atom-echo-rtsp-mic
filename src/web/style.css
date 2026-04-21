@@ -226,6 +226,12 @@ pre,
   margin-top: 2rem;
 }
 
+.hero-status {
+  margin-top: 2rem;
+  padding-top: 1.8rem;
+  border-top: 0.1rem solid rgba(113, 103, 89, 0.16);
+}
+
 .button.subtle,
 button.subtle {
   background: transparent;
@@ -334,25 +340,150 @@ button.button-warn {
 
 .field-inline {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0.8rem;
 }
 
-.field-inline input,
+.field-inline input:not([type="checkbox"]),
 .field-inline select {
+  flex: 1 1 auto;
   margin-bottom: 0;
-  min-width: 13rem;
+  min-width: 0;
+}
+
+.invalid-input {
+  border-color: var(--danger) !important;
+  background: #fff5f4;
+  box-shadow: 0 0 0 0.1rem rgba(162, 61, 58, 0.18);
 }
 
 .field-inline button {
+  flex: 0 0 auto;
   white-space: nowrap;
+}
+
+.button.button-pending,
+button.button-pending {
+  border-color: rgba(162, 61, 58, 0.6);
+  color: var(--danger);
+}
+
+.button.button-pending:hover,
+button.button-pending:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.button.button-pending:disabled,
+button.button-pending:disabled {
+  border-color: rgba(113, 103, 89, 0.28);
+  color: rgba(113, 103, 89, 0.7);
+  background: rgba(113, 103, 89, 0.06);
+}
+
+.button.button-pending:disabled:hover,
+button.button-pending:disabled:hover {
+  border-color: rgba(113, 103, 89, 0.28);
+  color: rgba(113, 103, 89, 0.7);
+  background: rgba(113, 103, 89, 0.06);
+}
+
+.checkbox-inline {
+  justify-content: space-between;
+}
+
+.checkbox-control {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 0;
+}
+
+.checkbox-control input {
+  margin-bottom: 0;
+}
+
+.checkbox-label {
+  color: var(--ink);
+  font-weight: 500;
 }
 
 .field-unit {
   color: var(--muted);
   font-size: 1.3rem;
   white-space: nowrap;
+}
+
+.field-subtitle {
+  display: block;
+  margin-bottom: 0.4rem;
+  color: var(--ink);
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.control-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem;
+  border: 0.1rem solid var(--paper-border);
+  border-radius: 999px;
+  background: rgba(113, 103, 89, 0.06);
+  width: fit-content;
+}
+
+.mode-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 0;
+  cursor: pointer;
+}
+
+.mode-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mode-option span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 8.4rem;
+  padding: 0.7rem 1.3rem;
+  border-radius: 999px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.mode-option.active span {
+  background: var(--paper-strong);
+  color: var(--accent);
+  box-shadow: 0 0.2rem 0.6rem rgba(47, 42, 35, 0.08);
+}
+
+.linked-setting {
+  background: linear-gradient(180deg, rgba(31, 122, 114, 0.04), var(--paper));
+}
+
+.linked-controls {
+  padding: 1rem 1.2rem 1.2rem;
+  border-radius: 1rem;
+  border: 0.1rem dashed rgba(31, 122, 114, 0.28);
+  background: rgba(31, 122, 114, 0.04);
+}
+
+.linked-controls-disabled {
+  opacity: 0.55;
 }
 
 .meta-note {
@@ -456,6 +587,6 @@ button.button-warn {
   }
 
   .field-inline > * {
-    width: 100%;
+    width: auto;
   }
 }

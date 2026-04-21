@@ -1,4 +1,10 @@
-import { html, render } from "https://esm.sh/htm/preact/standalone";
+import {
+  html,
+  render,
+  useEffect,
+  useRef,
+  useState,
+} from "https://esm.sh/htm/preact/standalone";
 
 const I18N_CONFIG = {
   default_language: "en",
@@ -53,8 +59,12 @@ const I18N_CONFIG = {
       en: "Device is not responding right now.",
       cs: "Zařízení právě neodpovídá.",
     },
-    "action.server_start": { en: "Server ON", cs: "Server ZAP" },
-    "action.server_stop": { en: "Server OFF", cs: "Server VYP" },
+    "common.invalid_value": {
+      en: "Please fix the highlighted value first.",
+      cs: "Nejprve opravte zvýrazněnou hodnotu.",
+    },
+    "action.server_start": { en: "RTSP Server ON", cs: "RTSP server ZAP" },
+    "action.server_stop": { en: "RTSP Server OFF", cs: "RTSP server VYP" },
     "action.reset_i2s": { en: "Reset I2S", cs: "Reset I2S" },
     "action.reboot": { en: "Reboot", cs: "Restart" },
     "action.defaults": { en: "Defaults", cs: "Výchozí" },
@@ -110,6 +120,10 @@ const I18N_CONFIG = {
     "status.server_disabled": { en: "Disabled", cs: "Zakázán" },
     "status.streaming_yes": { en: "Yes", cs: "Ano" },
     "status.streaming_no": { en: "No", cs: "Ne" },
+    "status.overview": {
+      en: "Live device status from the last refresh.",
+      cs: "Živý stav zařízení z posledního obnovení.",
+    },
     "audio.sample_rate": { en: "Sample Rate", cs: "Vzorkovací frekvence" },
     "audio.gain": { en: "Gain", cs: "Zisk" },
     "audio.dc_blocker": { en: "DC Blocker", cs: "DC blocker" },
@@ -195,6 +209,14 @@ const I18N_CONFIG = {
     "audio.help.buffer_size": {
       en: "Larger packets increase latency but improve stability on weak WiFi links.",
       cs: "Větší pakety zvyšují latenci, ale zlepšují stabilitu na slabší WiFi síti.",
+    },
+    "audio.hpf_group_note": {
+      en: "Cutoff is available only while High-pass is enabled.",
+      cs: "Mezní frekvence je dostupná jen při zapnutém vysokopropustném filtru.",
+    },
+    "audio.gain_mode_note": {
+      en: "Manual uses a fixed gain. Auto enables AGC while keeping this value as the base gain.",
+      cs: "Manuální režim používá pevný zisk. Automatický režim zapne AGC a tuto hodnotu ponechá jako základní zisk.",
     },
     "reliability.auto_recovery": {
       en: "Auto Recovery",
@@ -335,6 +357,8 @@ const I18N_CONFIG = {
       en: "Lower CPU speeds reduce heat and power usage. 120 MHz is a balanced default.",
       cs: "Nižší takty snižují teplotu i spotřebu. 120 MHz je vyvážená výchozí hodnota.",
     },
+    "binary.enabled": { en: "Enabled", cs: "Povoleno" },
+    "binary.disabled": { en: "Disabled", cs: "Zakázáno" },
     "logs.help": {
       en: "Live device log output. New lines append automatically.",
       cs: "Živý výstup logu zařízení. Nové řádky se doplňují automaticky.",
@@ -347,6 +371,7 @@ const LANGUAGE_OPTIONS = [
   { value: "cs", label: "Čeština" },
 ];
 
+const SAMPLE_RATE_OPTIONS = [8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000];
 const BUFFER_OPTIONS = [256, 512, 1024, 2048, 3072, 4096, 6144, 9600];
 const WIFI_TX_OPTIONS = [-1.0, 2.0, 5.0, 7.0, 8.5, 11.0, 13.0, 15.0, 17.0, 18.5, 19.0, 19.5];
 const CPU_OPTIONS = [80, 120, 160, 240];
@@ -364,9 +389,6 @@ const state = {
   perf: null,
   thermal: null,
   logs: "",
-  drafts: {},
-  dirty: {},
-  saving: {},
 };
 
 let reconnectTimer = null;
@@ -434,24 +456,39 @@ function setState(patch) {
   rerender();
 }
 
-function updateDraft(key, value) {
-  state.drafts[key] = String(value);
-  state.dirty[key] = true;
-  rerender();
+function parseNumber(rawValue) {
+  const normalized = String(rawValue ?? "").trim().replace(",", ".");
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
-function getDraftValue(key, fallback) {
-  if (Object.prototype.hasOwnProperty.call(state.drafts, key)) {
-    return state.drafts[key];
-  }
-  if (fallback === null || fallback === undefined) return "";
-  return String(fallback);
-}
-
-function clearDraft(key) {
-  delete state.drafts[key];
-  delete state.dirty[key];
-}
+const FIELD_VALIDATORS = {
+  gain(value) {
+    const parsed = parseNumber(value);
+    return parsed !== null && parsed >= 0.1 && parsed <= 100;
+  },
+  hp_cutoff(value) {
+    const parsed = parseNumber(value);
+    return parsed !== null && parsed >= 10 && parsed <= 10000;
+  },
+  min_rate(value) {
+    const parsed = parseNumber(value);
+    return parsed !== null && parsed >= 5 && parsed <= 200 && Number.isInteger(parsed);
+  },
+  reset_hours(value) {
+    const parsed = parseNumber(value);
+    return parsed !== null && parsed >= 1 && parsed <= 168 && Number.isInteger(parsed);
+  },
+  check_interval(value) {
+    const parsed = parseNumber(value);
+    return parsed !== null && parsed >= 1 && parsed <= 60 && Number.isInteger(parsed);
+  },
+  hostname(value) {
+    const trimmed = String(value ?? "").trim();
+    return /^[A-Za-z0-9-]{1,63}$/.test(trimmed);
+  },
+};
 
 function setInfo(message) {
   state.info = message;
@@ -465,6 +502,18 @@ function clearInfoSoon() {
       rerender();
     }
   }, 2000);
+}
+
+function isFieldValid(fieldKey, rawValue) {
+  const validator = FIELD_VALIDATORS[fieldKey];
+  if (!validator) return true;
+  const value = String(rawValue ?? "").trim();
+  if (!value) return true;
+  return validator(value);
+}
+
+function isBinaryOn(rawValue) {
+  return String(rawValue ?? "") === "on";
 }
 
 async function apiJson(path, options = {}) {
@@ -537,10 +586,9 @@ async function loadAll({ silent = false } = {}) {
 async function saveSetting(key, rawValue) {
   const value = String(rawValue ?? "").trim().replace(",", ".");
   if (!value) return;
-
-  state.saving[key] = true;
-  state.drafts[key] = value;
-  rerender();
+  if (!isFieldValid(key, value)) {
+    throw new Error(t("common.invalid_value"));
+  }
 
   try {
     const data = await apiJson(
@@ -548,13 +596,12 @@ async function saveSetting(key, rawValue) {
     );
     if (!data.ok) throw new Error(t("common.save_error"));
     await loadAll({ silent: true });
-    clearDraft(key);
     state.error = "";
+    rerender();
   } catch (error) {
     state.error = error.message || t("common.save_error");
-  } finally {
-    delete state.saving[key];
     rerender();
+    throw error;
   }
 }
 
@@ -616,14 +663,15 @@ async function handleWifiSetup() {
   }
 }
 
-async function handleHostnameSave() {
-  const value = String(state.drafts.hostname ?? state.status?.mdns_hostname ?? "")
+async function handleHostnameSave(_fieldKey, rawValue) {
+  const value = String(rawValue ?? state.status?.mdns_hostname ?? "")
     .trim()
     .replace(/\s+/g, "");
   if (!value) return;
+  if (!isFieldValid("hostname", value)) {
+    throw new Error(t("common.invalid_value"));
+  }
 
-  state.saving.hostname = true;
-  state.drafts.hostname = value;
   state.overlay = t("overlay.restarting");
   rerender();
 
@@ -634,11 +682,11 @@ async function handleHostnameSave() {
     if (!data.ok) throw new Error(t("common.save_error"));
     startReconnectLoop();
   } catch (error) {
-    delete state.saving.hostname;
     setState({
       overlay: "",
       error: error.message || t("common.save_error"),
     });
+    throw error;
   }
 }
 
@@ -871,9 +919,9 @@ function DataTable({ rows }) {
   `;
 }
 
-function SettingRow({ label, helpKey, controls, note }) {
+function SettingRow({ label, helpKey, controls, note, className = "" }) {
   return html`
-    <div class="setting-row">
+    <div class=${`setting-row ${className}`.trim()}>
       <div class="setting-head">
         <div class="setting-copy">
           <span class="setting-label">${label}</span>
@@ -886,23 +934,65 @@ function SettingRow({ label, helpKey, controls, note }) {
   `;
 }
 
-function TextInput({
+function useLocalSettingValue(currentValue) {
+  const normalizedCurrent = String(currentValue ?? "");
+  const [localValue, setLocalValue] = useState(normalizedCurrent);
+  const previousCurrentRef = useRef(normalizedCurrent);
+
+  useEffect(() => {
+    if (localValue === previousCurrentRef.current) {
+      setLocalValue(normalizedCurrent);
+    }
+    previousCurrentRef.current = normalizedCurrent;
+  }, [normalizedCurrent, localValue]);
+
+  return [localValue, setLocalValue, localValue !== normalizedCurrent];
+}
+
+function PendingSetButton({ disabled, label }) {
+  return html`
+    <button class="button button-outline button-pending" disabled=${disabled}>
+      ${label}
+    </button>
+  `;
+}
+
+function TextSettingControl({
   fieldKey,
-  value,
+  currentValue,
   type = "text",
   min,
   max,
   step,
   maxLength,
   unit,
-  action,
-  actionLabel,
+  saveLabel,
   placeholder = "",
+  disabled = false,
+  onSave = saveSetting,
 }) {
-  const disabled = !!state.saving[fieldKey];
+  const [value, setValue, changed] = useLocalSettingValue(currentValue);
+  const [saving, setSaving] = useState(false);
+  const inputDisabled = disabled || saving;
+  const invalid = !disabled && !isFieldValid(fieldKey, value);
+
+  async function onSubmit(event) {
+    event.preventDefault();
+    if (inputDisabled || invalid || !changed) return;
+    setSaving(true);
+    try {
+      await onSave(fieldKey, value);
+    } catch (_error) {
+      // Global error banner is already updated by the save helper.
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return html`
-    <div class="field-inline">
+    <form class="field-inline" onSubmit=${onSubmit}>
       <input
+        class=${invalid ? "invalid-input" : ""}
         type=${type}
         value=${value}
         min=${min}
@@ -910,27 +1000,54 @@ function TextInput({
         step=${step}
         maxlength=${maxLength}
         placeholder=${placeholder}
-        onInput=${(event) => updateDraft(fieldKey, event.target.value)}
+        disabled=${inputDisabled}
+        aria-invalid=${invalid ? "true" : "false"}
+        onInput=${(event) => setValue(event.currentTarget.value)}
         onKeyDown=${(event) => {
           if (event.key === "Enter") {
-            event.preventDefault();
-            action();
+            onSubmit(event);
           }
         }}
       />
       ${unit ? html`<span class="field-unit">${unit}</span>` : null}
-      <button disabled=${disabled} onClick=${action}>${actionLabel}</button>
-    </div>
+      <${PendingSetButton}
+        disabled=${inputDisabled || invalid || !changed}
+        label=${saveLabel}
+      />
+    </form>
   `;
 }
 
-function SelectInput({ fieldKey, value, options, action, actionLabel, formatOption }) {
-  const disabled = !!state.saving[fieldKey];
+function SelectSettingControl({
+  fieldKey,
+  currentValue,
+  options,
+  saveLabel,
+  formatOption,
+  onSave = saveSetting,
+}) {
+  const [value, setValue, changed] = useLocalSettingValue(currentValue);
+  const [saving, setSaving] = useState(false);
+
+  async function onSubmit(event) {
+    event.preventDefault();
+    if (saving || !changed) return;
+    setSaving(true);
+    try {
+      await onSave(fieldKey, value);
+    } catch (_error) {
+      // Global error banner is already updated by the save helper.
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return html`
-    <div class="field-inline">
+    <form class="field-inline" onSubmit=${onSubmit}>
       <select
         value=${value}
-        onChange=${(event) => updateDraft(fieldKey, event.target.value)}
+        disabled=${saving}
+        onChange=${(event) => setValue(event.currentTarget.value)}
       >
         ${options.map((option) => {
           const optionValue = String(option);
@@ -941,8 +1058,212 @@ function SelectInput({ fieldKey, value, options, action, actionLabel, formatOpti
           `;
         })}
       </select>
-      <button disabled=${disabled} onClick=${action}>${actionLabel}</button>
+      <${PendingSetButton}
+        disabled=${saving || !changed}
+        label=${saveLabel}
+      />
+    </form>
+  `;
+}
+
+function CheckboxSettingControl({
+  fieldKey,
+  currentValue,
+  saveLabel,
+  onSave = saveSetting,
+}) {
+  const [value, setValue, changed] = useLocalSettingValue(currentValue);
+  const [saving, setSaving] = useState(false);
+  const checked = isBinaryOn(value);
+
+  async function onSubmit(event) {
+    event.preventDefault();
+    if (saving || !changed) return;
+    setSaving(true);
+    try {
+      await onSave(fieldKey, checked ? "on" : "off");
+    } catch (_error) {
+      // Global error banner is already updated by the save helper.
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return html`
+    <form class="field-inline checkbox-inline" onSubmit=${onSubmit}>
+      <label class="checkbox-control">
+        <input
+          type="checkbox"
+          checked=${checked}
+          disabled=${saving}
+          onChange=${(event) =>
+            setValue(event.currentTarget.checked ? "on" : "off")}
+        />
+        <span class="checkbox-label">
+          ${checked ? t("binary.enabled") : t("binary.disabled")}
+        </span>
+      </label>
+      <${PendingSetButton}
+        disabled=${saving || !changed}
+        label=${saveLabel}
+      />
+    </form>
+  `;
+}
+
+function HighPassSettingControl({ enabledValue, cutoffValue }) {
+  const [enabled, setEnabled, enabledChanged] = useLocalSettingValue(enabledValue);
+  const [cutoff, setCutoff, cutoffChanged] = useLocalSettingValue(cutoffValue);
+  const [savingEnabled, setSavingEnabled] = useState(false);
+  const [savingCutoff, setSavingCutoff] = useState(false);
+  const highpassEnabled = isBinaryOn(enabled);
+  const invalidCutoff = highpassEnabled && !isFieldValid("hp_cutoff", cutoff);
+
+  async function submitEnabled(event) {
+    event.preventDefault();
+    if (savingEnabled || !enabledChanged) return;
+    setSavingEnabled(true);
+    try {
+      await saveSetting("hp_enable", highpassEnabled ? "on" : "off");
+    } catch (_error) {
+      // Global error banner is already updated by the save helper.
+    } finally {
+      setSavingEnabled(false);
+    }
+  }
+
+  async function submitCutoff(event) {
+    event.preventDefault();
+    if (savingCutoff || !cutoffChanged || invalidCutoff || !highpassEnabled) return;
+    setSavingCutoff(true);
+    try {
+      await saveSetting("hp_cutoff", cutoff);
+    } catch (_error) {
+      // Global error banner is already updated by the save helper.
+    } finally {
+      setSavingCutoff(false);
+    }
+  }
+
+  return html`
+    <div class="control-stack">
+      <form class="field-inline checkbox-inline" onSubmit=${submitEnabled}>
+        <label class="checkbox-control">
+          <input
+            type="checkbox"
+            checked=${highpassEnabled}
+            disabled=${savingEnabled}
+            onChange=${(event) =>
+              setEnabled(event.currentTarget.checked ? "on" : "off")}
+          />
+          <span class="checkbox-label">
+            ${highpassEnabled ? t("binary.enabled") : t("binary.disabled")}
+          </span>
+        </label>
+        <${PendingSetButton}
+          disabled=${savingEnabled || !enabledChanged}
+          label=${t("common.set")}
+        />
+      </form>
+
+      <div class=${`linked-controls ${highpassEnabled ? "" : "linked-controls-disabled"}`.trim()}>
+        <span class="field-subtitle">${t("audio.highpass_cutoff")}</span>
+        <p class="setting-help">${t("audio.help.highpass_cutoff")}</p>
+        <form class="field-inline" onSubmit=${submitCutoff}>
+          <input
+            class=${invalidCutoff ? "invalid-input" : ""}
+            type="number"
+            min="10"
+            max="10000"
+            step="10"
+            value=${cutoff}
+            disabled=${savingCutoff || !highpassEnabled}
+            aria-invalid=${invalidCutoff ? "true" : "false"}
+            onInput=${(event) => setCutoff(event.currentTarget.value)}
+          />
+          <span class="field-unit">Hz</span>
+          <${PendingSetButton}
+            disabled=${savingCutoff || invalidCutoff || !highpassEnabled || !cutoffChanged}
+            label=${t("common.set")}
+          />
+        </form>
+      </div>
     </div>
+  `;
+}
+
+function GainSettingControl({ gainValue, agcValue, agcInfo }) {
+  const currentMode = agcValue === "on" ? "auto" : "manual";
+  const [mode, setMode, modeChanged] = useLocalSettingValue(currentMode);
+  const [gain, setGain, gainChanged] = useLocalSettingValue(gainValue);
+  const [saving, setSaving] = useState(false);
+  const invalidGain = !isFieldValid("gain", gain);
+  const changed = modeChanged || gainChanged;
+
+  async function onSubmit(event) {
+    event.preventDefault();
+    if (saving || invalidGain || !changed) return;
+    setSaving(true);
+    try {
+      if (modeChanged) {
+        await saveSetting("agc_enable", mode === "auto" ? "on" : "off");
+      }
+      if (gainChanged) {
+        await saveSetting("gain", gain);
+      }
+    } catch (_error) {
+      // Global error banner is already updated by the save helper.
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return html`
+    <form class="control-stack" onSubmit=${onSubmit}>
+      <div class="mode-toggle" role="radiogroup" aria-label=${t("audio.gain")}>
+        <label class=${`mode-option ${mode === "manual" ? "active" : ""}`.trim()}>
+          <input
+            type="radio"
+            name="gain_mode"
+            checked=${mode === "manual"}
+            disabled=${saving}
+            onChange=${() => setMode("manual")}
+          />
+          <span>${t("common.manual")}</span>
+        </label>
+        <label class=${`mode-option ${mode === "auto" ? "active" : ""}`.trim()}>
+          <input
+            type="radio"
+            name="gain_mode"
+            checked=${mode === "auto"}
+            disabled=${saving}
+            onChange=${() => setMode("auto")}
+          />
+          <span>${t("common.auto")}</span>
+        </label>
+      </div>
+      <div class="field-inline">
+        <input
+          class=${invalidGain ? "invalid-input" : ""}
+          type="number"
+          min="0.1"
+          max="100"
+          step="0.1"
+          value=${gain}
+          disabled=${saving}
+          aria-invalid=${invalidGain ? "true" : "false"}
+          onInput=${(event) => setGain(event.currentTarget.value)}
+        />
+        <span class="field-unit">×</span>
+        <${PendingSetButton}
+          disabled=${saving || invalidGain || !changed}
+          label=${t("common.set")}
+        />
+      </div>
+      <div class="meta-note">
+        ${agcInfo || t("audio.gain_mode_note")}
+      </div>
+    </form>
   `;
 }
 
@@ -951,7 +1272,6 @@ function HeroCard() {
   const rtspUrl = status?.mdns_hostname
     ? `rtsp://${status.mdns_hostname}.local:8554/audio`
     : t("common.loading");
-  const serverEnabled = !!status?.rtsp_server_enabled;
 
   return html`
     <section class="card hero-card">
@@ -962,14 +1282,8 @@ function HeroCard() {
           <p class="card-intro">${t("app.subtitle")}</p>
           <div class="hero-meta">
             <span class="firmware-badge">
-              ${status?.fw_version ? `v${status.fw_version}` : t("common.loading")}
+              ${status?.fw_version ? `Version ${status.fw_version}` : t("common.loading")}
             </span>
-            ${status
-              ? renderPill(
-                  serverEnabled ? t("status.server_enabled") : t("status.server_disabled"),
-                  serverEnabled ? "ok" : "bad",
-                )
-              : renderPill(t("common.loading"), "neutral")}
           </div>
           <div class="hero-url">
             <span class="hero-url-label">${t("app.rtsp_url")}</span>
@@ -1036,15 +1350,12 @@ function HeroCard() {
           ${t("action.wifi_setup")}
         </button>
       </div>
-    </section>
-  `;
-}
 
-function StatusCard() {
-  return html`
-    <section class="card">
-      <h2>${t("section.status")}</h2>
-      <${DataTable} rows=${renderStatusRows()} />
+      <div class="hero-status">
+        <h2>${t("section.status")}</h2>
+        <p class="card-intro">${t("status.overview")}</p>
+        <${DataTable} rows=${renderStatusRows()} />
+      </div>
     </section>
   `;
 }
@@ -1077,17 +1388,12 @@ function AudioCard() {
           label=${t("audio.sample_rate")}
           helpKey="audio.help.sample_rate"
           controls=${html`
-            <${TextInput}
+            <${SelectSettingControl}
               fieldKey="rate"
-              type="number"
-              min="8000"
-              max="48000"
-              step="1000"
-              unit="Hz"
-              value=${getDraftValue("rate", currentRate)}
-              action=${() =>
-                saveSetting("rate", getDraftValue("rate", currentRate))}
-              actionLabel=${t("common.set")}
+              currentValue=${currentRate}
+              options=${SAMPLE_RATE_OPTIONS}
+              formatOption=${(value) => `${Math.round(value / 1000)} kHz`}
+              saveLabel=${t("common.set")}
             />
           `}
         />
@@ -1095,17 +1401,10 @@ function AudioCard() {
           label=${t("audio.gain")}
           helpKey="audio.help.gain"
           controls=${html`
-            <${TextInput}
-              fieldKey="gain"
-              type="number"
-              min="0.1"
-              max="100"
-              step="0.1"
-              unit="×"
-              value=${getDraftValue("gain", currentGain)}
-              action=${() =>
-                saveSetting("gain", getDraftValue("gain", currentGain))}
-              actionLabel=${t("common.set")}
+            <${GainSettingControl}
+              gainValue=${currentGain}
+              agcValue=${currentAgc}
+              agcInfo=${agcInfo}
             />
           `}
         />
@@ -1113,78 +1412,22 @@ function AudioCard() {
           label=${t("audio.dc_blocker")}
           helpKey="audio.help.dc_blocker"
           controls=${html`
-            <${SelectInput}
+            <${CheckboxSettingControl}
               fieldKey="dc_blocker"
-              value=${getDraftValue("dc_blocker", currentDcBlocker)}
-              options=${["off", "on"]}
-              formatOption=${(value) =>
-                value === "on" ? t("common.on") : t("common.off")}
-              action=${() =>
-                saveSetting(
-                  "dc_blocker",
-                  getDraftValue("dc_blocker", currentDcBlocker),
-                )}
-              actionLabel=${t("common.set")}
+              currentValue=${currentDcBlocker}
+              saveLabel=${t("common.set")}
             />
           `}
         />
         <${SettingRow}
           label=${t("audio.highpass")}
           helpKey="audio.help.highpass"
+          note=${t("audio.hpf_group_note")}
+          className="linked-setting"
           controls=${html`
-            <${SelectInput}
-              fieldKey="hp_enable"
-              value=${getDraftValue("hp_enable", currentHpEnable)}
-              options=${["off", "on"]}
-              formatOption=${(value) =>
-                value === "on" ? t("common.on") : t("common.off")}
-              action=${() =>
-                saveSetting(
-                  "hp_enable",
-                  getDraftValue("hp_enable", currentHpEnable),
-                )}
-              actionLabel=${t("common.set")}
-            />
-          `}
-        />
-        <${SettingRow}
-          label=${t("audio.highpass_cutoff")}
-          helpKey="audio.help.highpass_cutoff"
-          controls=${html`
-            <${TextInput}
-              fieldKey="hp_cutoff"
-              type="number"
-              min="10"
-              max="10000"
-              step="10"
-              unit="Hz"
-              value=${getDraftValue("hp_cutoff", currentHpCutoff)}
-              action=${() =>
-                saveSetting(
-                  "hp_cutoff",
-                  getDraftValue("hp_cutoff", currentHpCutoff),
-                )}
-              actionLabel=${t("common.set")}
-            />
-          `}
-        />
-        <${SettingRow}
-          label=${t("audio.agc")}
-          helpKey="audio.help.agc"
-          note=${agcInfo}
-          controls=${html`
-            <${SelectInput}
-              fieldKey="agc_enable"
-              value=${getDraftValue("agc_enable", currentAgc)}
-              options=${["off", "on"]}
-              formatOption=${(value) =>
-                value === "on" ? t("common.on") : t("common.off")}
-              action=${() =>
-                saveSetting(
-                  "agc_enable",
-                  getDraftValue("agc_enable", currentAgc),
-                )}
-              actionLabel=${t("common.set")}
+            <${HighPassSettingControl}
+              enabledValue=${currentHpEnable}
+              cutoffValue=${currentHpCutoff}
             />
           `}
         />
@@ -1192,21 +1435,16 @@ function AudioCard() {
           label=${t("audio.led_mode")}
           helpKey="audio.help.led_mode"
           controls=${html`
-            <${SelectInput}
+            <${SelectSettingControl}
               fieldKey="led_mode"
-              value=${getDraftValue("led_mode", currentLed)}
+              currentValue=${currentLed}
               options=${[0, 1, 2]}
               formatOption=${(value) => {
                 if (Number(value) === 0) return t("audio.led_off");
                 if (Number(value) === 1) return t("audio.led_static");
                 return t("audio.led_level");
               }}
-              action=${() =>
-                saveSetting(
-                  "led_mode",
-                  getDraftValue("led_mode", currentLed),
-                )}
-              actionLabel=${t("common.set")}
+              saveLabel=${t("common.set")}
             />
           `}
         />
@@ -1214,17 +1452,12 @@ function AudioCard() {
           label=${t("audio.buffer_size")}
           helpKey="audio.help.buffer_size"
           controls=${html`
-            <${SelectInput}
+            <${SelectSettingControl}
               fieldKey="buffer"
-              value=${getDraftValue("buffer", currentBuffer)}
+              currentValue=${currentBuffer}
               options=${BUFFER_OPTIONS}
               formatOption=${(value) => `${value} samples`}
-              action=${() =>
-                saveSetting(
-                  "buffer",
-                  getDraftValue("buffer", currentBuffer),
-                )}
-              actionLabel=${t("common.set")}
+              saveLabel=${t("common.set")}
             />
           `}
         />
@@ -1270,18 +1503,10 @@ function ReliabilityCard() {
           label=${t("reliability.auto_recovery")}
           helpKey="reliability.help.auto_recovery"
           controls=${html`
-            <${SelectInput}
+            <${CheckboxSettingControl}
               fieldKey="auto_recovery"
-              value=${getDraftValue("auto_recovery", autoRecovery)}
-              options=${["off", "on"]}
-              formatOption=${(value) =>
-                value === "on" ? t("common.on") : t("common.off")}
-              action=${() =>
-                saveSetting(
-                  "auto_recovery",
-                  getDraftValue("auto_recovery", autoRecovery),
-                )}
-              actionLabel=${t("common.set")}
+              currentValue=${autoRecovery}
+              saveLabel=${t("common.set")}
             />
           `}
         />
@@ -1294,18 +1519,13 @@ function ReliabilityCard() {
               })
             : ""}
           controls=${html`
-            <${SelectInput}
+            <${SelectSettingControl}
               fieldKey="thr_mode"
-              value=${getDraftValue("thr_mode", thresholdMode)}
+              currentValue=${thresholdMode}
               options=${["auto", "manual"]}
               formatOption=${(value) =>
                 value === "auto" ? t("common.auto") : t("common.manual")}
-              action=${() =>
-                saveSetting(
-                  "thr_mode",
-                  getDraftValue("thr_mode", thresholdMode),
-                )}
-              actionLabel=${t("common.set")}
+              saveLabel=${t("common.set")}
             />
           `}
         />
@@ -1316,20 +1536,15 @@ function ReliabilityCard() {
                 label=${t("reliability.restart_threshold")}
                 helpKey="reliability.help.restart_threshold"
                 controls=${html`
-                  <${TextInput}
+                  <${TextSettingControl}
                     fieldKey="min_rate"
+                    currentValue=${restartThreshold}
                     type="number"
                     min="5"
                     max="200"
                     step="1"
                     unit="pkt/s"
-                    value=${getDraftValue("min_rate", restartThreshold)}
-                    action=${() =>
-                      saveSetting(
-                        "min_rate",
-                        getDraftValue("min_rate", restartThreshold),
-                      )}
-                    actionLabel=${t("common.set")}
+                    saveLabel=${t("common.set")}
                   />
                 `}
               />
@@ -1338,18 +1553,10 @@ function ReliabilityCard() {
           label=${t("reliability.scheduled_reset")}
           helpKey="reliability.help.scheduled_reset"
           controls=${html`
-            <${SelectInput}
+            <${CheckboxSettingControl}
               fieldKey="sched_reset"
-              value=${getDraftValue("sched_reset", scheduledReset)}
-              options=${["off", "on"]}
-              formatOption=${(value) =>
-                value === "on" ? t("common.on") : t("common.off")}
-              action=${() =>
-                saveSetting(
-                  "sched_reset",
-                  getDraftValue("sched_reset", scheduledReset),
-                )}
-              actionLabel=${t("common.set")}
+              currentValue=${scheduledReset}
+              saveLabel=${t("common.set")}
             />
           `}
         />
@@ -1357,20 +1564,15 @@ function ReliabilityCard() {
           label=${t("reliability.reset_hours")}
           helpKey="reliability.help.reset_hours"
           controls=${html`
-            <${TextInput}
+            <${TextSettingControl}
               fieldKey="reset_hours"
+              currentValue=${resetHours}
               type="number"
               min="1"
               max="168"
               step="1"
               unit="h"
-              value=${getDraftValue("reset_hours", resetHours)}
-              action=${() =>
-                saveSetting(
-                  "reset_hours",
-                  getDraftValue("reset_hours", resetHours),
-                )}
-              actionLabel=${t("common.set")}
+              saveLabel=${t("common.set")}
             />
           `}
         />
@@ -1393,18 +1595,10 @@ function ThermalCard() {
           label=${t("thermal.overheat_protection")}
           helpKey="thermal.help.overheat_protection"
           controls=${html`
-            <${SelectInput}
+            <${CheckboxSettingControl}
               fieldKey="oh_enable"
-              value=${getDraftValue("oh_enable", enableValue)}
-              options=${["off", "on"]}
-              formatOption=${(value) =>
-                value === "on" ? t("common.on") : t("common.off")}
-              action=${() =>
-                saveSetting(
-                  "oh_enable",
-                  getDraftValue("oh_enable", enableValue),
-                )}
-              actionLabel=${t("common.set")}
+              currentValue=${enableValue}
+              saveLabel=${t("common.set")}
             />
           `}
         />
@@ -1412,17 +1606,12 @@ function ThermalCard() {
           label=${t("thermal.shutdown_limit")}
           helpKey="thermal.help.shutdown_limit"
           controls=${html`
-            <${SelectInput}
+            <${SelectSettingControl}
               fieldKey="oh_limit"
-              value=${getDraftValue("oh_limit", limitValue)}
+              currentValue=${limitValue}
               options=${THERMAL_LIMIT_OPTIONS}
               formatOption=${(value) => `${value} °C`}
-              action=${() =>
-                saveSetting(
-                  "oh_limit",
-                  getDraftValue("oh_limit", limitValue),
-                )}
-              actionLabel=${t("common.set")}
+              saveLabel=${t("common.set")}
             />
           `}
         />
@@ -1481,20 +1670,15 @@ function AdvancedCard() {
           label=${t("advanced.check_interval")}
           helpKey="advanced.help.check_interval"
           controls=${html`
-            <${TextInput}
+            <${TextSettingControl}
               fieldKey="check_interval"
+              currentValue=${checkInterval}
               type="number"
               min="1"
               max="60"
               step="1"
               unit="min"
-              value=${getDraftValue("check_interval", checkInterval)}
-              action=${() =>
-                saveSetting(
-                  "check_interval",
-                  getDraftValue("check_interval", checkInterval),
-                )}
-              actionLabel=${t("common.set")}
+              saveLabel=${t("common.set")}
             />
           `}
         />
@@ -1502,17 +1686,12 @@ function AdvancedCard() {
           label=${t("advanced.wifi_tx_power")}
           helpKey="advanced.help.wifi_tx_power"
           controls=${html`
-            <${SelectInput}
+            <${SelectSettingControl}
               fieldKey="wifi_tx"
-              value=${getDraftValue("wifi_tx", Number(wifiTx).toFixed(1))}
+              currentValue=${Number(wifiTx).toFixed(1)}
               options=${WIFI_TX_OPTIONS.map((value) => value.toFixed(1))}
               formatOption=${(value) => `${value} dBm`}
-              action=${() =>
-                saveSetting(
-                  "wifi_tx",
-                  getDraftValue("wifi_tx", Number(wifiTx).toFixed(1)),
-                )}
-              actionLabel=${t("common.set")}
+              saveLabel=${t("common.set")}
             />
           `}
         />
@@ -1520,14 +1699,14 @@ function AdvancedCard() {
           label=${t("advanced.hostname")}
           helpKey="advanced.help.hostname"
           controls=${html`
-            <${TextInput}
+            <${TextSettingControl}
               fieldKey="hostname"
+              currentValue=${hostname}
               type="text"
               maxLength="63"
               unit=".local"
-              value=${getDraftValue("hostname", hostname)}
-              action=${handleHostnameSave}
-              actionLabel=${t("common.set_reboot")}
+              onSave=${handleHostnameSave}
+              saveLabel=${t("common.set_reboot")}
             />
           `}
         />
@@ -1535,17 +1714,12 @@ function AdvancedCard() {
           label=${t("advanced.cpu_frequency")}
           helpKey="advanced.help.cpu_frequency"
           controls=${html`
-            <${SelectInput}
+            <${SelectSettingControl}
               fieldKey="cpu_freq"
-              value=${getDraftValue("cpu_freq", cpuFreq)}
+              currentValue=${cpuFreq}
               options=${CPU_OPTIONS}
               formatOption=${(value) => `${value} MHz`}
-              action=${() =>
-                saveSetting(
-                  "cpu_freq",
-                  getDraftValue("cpu_freq", cpuFreq),
-                )}
-              actionLabel=${t("common.set")}
+              saveLabel=${t("common.set")}
             />
           `}
         />
@@ -1580,7 +1754,6 @@ function App() {
       ${state.info ? html`<div class="banner info">${state.info}</div>` : null}
 
       <div class="page-grid">
-        <${StatusCard} />
         <${AudioCard} />
         <${ReliabilityCard} />
         <${ThermalCard} />
