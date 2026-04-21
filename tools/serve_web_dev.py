@@ -121,15 +121,6 @@ class FakeDeviceState:
         expected = self.expected_rate_locked()
         return int(clamp(round(expected * 0.7), 5, 200))
 
-    def profile_name_locked(self) -> str:
-        if self.buffer_size <= 256:
-            return "Ultra-Low Latency"
-        if self.buffer_size <= 512:
-            return "Balanced"
-        if self.buffer_size <= 1024:
-            return "Stable Streaming"
-        return "High Stability"
-
     def effective_gain_locked(self) -> float:
         return self.gain * (self.agc_multiplier if self.agc_enable else 1.0)
 
@@ -226,7 +217,6 @@ class FakeDeviceState:
             "buffer_size": self.buffer_size,
             "i2s_shift": 0,
             "latency_ms": round(self.buffer_size / self.sample_rate * 1000.0, 1),
-            "profile": self.profile_name_locked(),
             "dc_blocker_enable": self.dc_blocker_enable,
             "hp_enable": self.hp_enable,
             "hp_cutoff_hz": self.hp_cutoff_hz,

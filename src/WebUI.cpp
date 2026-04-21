@@ -116,14 +116,6 @@ void webui_pushLog(const String &line) {
     portEXIT_CRITICAL(&logMux);
 }
 
-static String profileName(uint16_t buf) {
-    // Server-side fallback (English). UI localizes on client by buffer size.
-    if (buf <= 256) return F("Ultra-Low Latency (Higher CPU, May have dropouts)");
-    if (buf <= 512) return F("Balanced (Moderate CPU, Good stability)");
-    if (buf <= 1024) return F("Stable Streaming (Lower CPU, Excellent stability)");
-    return F("High Stability (Lowest CPU, Maximum stability)");
-}
-
 static void apiSendJSON(const String &json) {
     web.sendHeader("Cache-Control", "no-cache");
     web.send(200, "application/json", json);
@@ -177,7 +169,6 @@ static void httpState() {
     doc["buffer_size"]             = currentBufferSize;
     doc["i2s_shift"]               = i2sShiftBits;
     doc["latency_ms"]              = latency_ms;
-    doc["profile"]                 = profileName(currentBufferSize);
     doc["dc_blocker_enable"]       = dcBlockerEnabled;
     doc["hp_enable"]               = highpassEnabled;
     doc["hp_cutoff_hz"]            = highpassCutoffHz;
