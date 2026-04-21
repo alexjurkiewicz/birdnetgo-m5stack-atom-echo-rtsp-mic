@@ -217,18 +217,6 @@ const I18N_CONFIG = {
       en: "Manual uses a fixed gain. Auto enables AGC while keeping this value as the base gain.",
       cs: "Manuální režim používá pevný zisk. Automatický režim zapne AGC a tuto hodnotu ponechá jako základní zisk.",
     },
-    "reliability.auto_recovery": {
-      en: "Auto Recovery",
-      cs: "Automatická obnova",
-    },
-    "reliability.threshold_mode": {
-      en: "Threshold Mode",
-      cs: "Režim prahu",
-    },
-    "reliability.restart_threshold": {
-      en: "Restart Threshold",
-      cs: "Prahová hodnota restartu",
-    },
     "reliability.scheduled_reset": {
       en: "Scheduled Reset",
       cs: "Plánovaný restart",
@@ -236,18 +224,6 @@ const I18N_CONFIG = {
     "reliability.reset_hours": {
       en: "Reset After",
       cs: "Po kolika hodinách",
-    },
-    "reliability.help.auto_recovery": {
-      en: "Restarts the audio pipeline when packet rate drops below the threshold for sustained period.",
-      cs: "Restartuje audio pipeline, když rychlost paketů klesne pod práh po dobu.",
-    },
-    "reliability.help.threshold_mode": {
-      en: "Auto: threshold is 50% of expected rate (conservative, for unstable networks). Manual: set your own floor.",
-      cs: "Auto: práh je 50% očekávané rychlosti (konzervativní, pro nestabilní sítě). Manuální: nastavte vlastní limit.",
-    },
-    "reliability.help.restart_threshold": {
-      en: "Packet rate floor (pkt/s) - if rate drops below this for a sustained period, the pipeline restarts. Valid range is 5 to 200 pkt/s. Your expected rate may be higher than the recommended conservative value.",
-      cs: "Limit rychlosti paketů (pkt/s) - pokud rychlost klesne pod tuto hodnotu po dobu, pipeline se restartuje. Platný rozsah je 5 až 200 pkt/s. Vaše očekávaná rychlost může být vyšší než doporučená konzervativní hodnota.",
     },
     "reliability.help.scheduled_reset": {
       en: "Optional periodic reboot for problematic networks.",
@@ -260,18 +236,6 @@ const I18N_CONFIG = {
     "reliability.scheduled_reset_group_note": {
       en: "Reset After is available only when Scheduled Reset is enabled.",
       cs: "Možnost Po kolika hodinách je dostupná jen při zapnutém Plánovaném restartu.",
-    },
-    "reliability.auto_recovery_group_note": {
-      en: "Threshold Mode and Restart Threshold are available only when Auto Recovery is enabled.",
-      cs: "Režim prahu a prahová hodnota restartu jsou dostupné jen při zapnuté Automatické obnově.",
-    },
-    "reliability.recommended_threshold": {
-      en: "Recommended threshold: {value} pkt/s",
-      cs: "Doporučený práh: {value} pkt/s",
-    },
-    "reliability.expected_pkt_rate": {
-      en: "Your expected packet rate: {value} pkt/s",
-      cs: "Očekávaná rychlost paketů: {value} pkt/s",
     },
     "thermal.overheat_protection": {
       en: "Overheat Protection",
@@ -1337,137 +1301,6 @@ function BufferSizeSettingControl({ bufferValue, sampleRate }) {
     </div>
   `;
 }
-
-function AutoRecoverySettingControl({ autoRecoveryValue, thresholdModeValue, restartThresholdValue, expectedPktRate, recommendedRate }) {
-  const [autoRecovery, setAutoRecovery, autoRecoveryChanged] = useLocalSettingValue(autoRecoveryValue);
-  const [thresholdMode, setThresholdMode, thresholdModeChanged] = useLocalSettingValue(thresholdModeValue);
-  const [restartThreshold, setRestartThreshold, restartThresholdChanged] = useLocalSettingValue(restartThresholdValue);
-  const [savingRecovery, setSavingRecovery] = useState(false);
-  const [savingMode, setSavingMode] = useState(false);
-  const [savingThreshold, setSavingThreshold] = useState(false);
-  const autoRecoveryEnabled = isBinaryOn(autoRecovery);
-  const isManualMode = thresholdMode === "manual";
-  const invalidThreshold = isManualMode && !isFieldValid("min_rate", restartThreshold);
-
-  async function submitAutoRecovery(event) {
-    event.preventDefault();
-    if (savingRecovery || !autoRecoveryChanged) return;
-    setSavingRecovery(true);
-    try {
-      await saveSetting("auto_recovery", autoRecoveryEnabled ? "on" : "off");
-    } catch (_error) {
-      // Global error banner is already updated by the save helper.
-    } finally {
-      setSavingRecovery(false);
-    }
-  }
-
-  async function submitThresholdMode(event) {
-    event.preventDefault();
-    if (savingMode || !thresholdModeChanged) return;
-    setSavingMode(true);
-    try {
-      await saveSetting("thr_mode", thresholdMode);
-    } catch (_error) {
-      // Global error banner is already updated by the save helper.
-    } finally {
-      setSavingMode(false);
-    }
-  }
-
-  async function submitRestartThreshold(event) {
-    event.preventDefault();
-    if (savingThreshold || !restartThresholdChanged || invalidThreshold || !isManualMode) return;
-    setSavingThreshold(true);
-    try {
-      await saveSetting("min_rate", restartThreshold);
-    } catch (_error) {
-      // Global error banner is already updated by the save helper.
-    } finally {
-      setSavingThreshold(false);
-    }
-  }
-
-  return html`
-    <div class="control-stack">
-      <form class="field-inline checkbox-inline" onSubmit=${submitAutoRecovery}>
-        <label class="checkbox-control">
-          <input
-            type="checkbox"
-            checked=${autoRecoveryEnabled}
-            disabled=${savingRecovery}
-            onChange=${(event) =>
-              setAutoRecovery(event.currentTarget.checked ? "on" : "off")}
-          />
-          <span class="checkbox-label">
-            ${autoRecoveryEnabled ? t("binary.enabled") : t("binary.disabled")}
-          </span>
-        </label>
-        <${PendingSetButton}
-          disabled=${savingRecovery || !autoRecoveryChanged}
-          label=${t("common.set")}
-        />
-      </form>
-
-      <div class=${`linked-controls ${autoRecoveryEnabled ? "" : "linked-controls-disabled"}`.trim()}>
-        <span class="field-subtitle">${t("reliability.threshold_mode")}</span>
-        <p class="setting-help">${t("reliability.help.threshold_mode")}</p>
-        ${expectedPktRate
-          ? html`<p class="setting-help">${t("reliability.expected_pkt_rate", {
-              value: String(expectedPktRate),
-            })}</p>`
-          : null}
-        ${recommendedRate
-          ? html`<p class="setting-help">${t("reliability.recommended_threshold", {
-              value: String(recommendedRate),
-            })}</p>`
-          : null}
-        <form class="field-inline" style="margin-bottom: 0.8rem;" onSubmit=${submitThresholdMode}>
-          <select
-            disabled=${savingMode || !autoRecoveryEnabled}
-            value=${thresholdMode}
-            onChange=${(event) => setThresholdMode(event.currentTarget.value)}
-          >
-            <option value="auto">${t("common.auto")}</option>
-            <option value="manual">${t("common.manual")}</option>
-          </select>
-          <${PendingSetButton}
-            disabled=${savingMode || !autoRecoveryEnabled || !thresholdModeChanged}
-            label=${t("common.set")}
-          />
-        </form>
-
-        ${isManualMode
-          ? html`
-              <div style="margin-top: 0.8rem;">
-                <span class="field-subtitle">${t("reliability.restart_threshold")}</span>
-                <p class="setting-help">${t("reliability.help.restart_threshold")}</p>
-                <form class="field-inline" onSubmit=${submitRestartThreshold}>
-                  <input
-                    class=${invalidThreshold ? "invalid-input" : ""}
-                    type="number"
-                    min="5"
-                    max="200"
-                    step="1"
-                    value=${restartThreshold}
-                    disabled=${savingThreshold || !autoRecoveryEnabled}
-                    aria-invalid=${invalidThreshold ? "true" : "false"}
-                    onInput=${(event) => setRestartThreshold(event.currentTarget.value)}
-                  />
-                  <span class="field-unit">pkt/s</span>
-                  <${PendingSetButton}
-                    disabled=${savingThreshold || invalidThreshold || !autoRecoveryEnabled || !restartThresholdChanged}
-                    label=${t("common.set")}
-                  />
-                </form>
-              </div>
-            `
-          : null}
-      </div>
-    </div>
-  `;
-}
-
 function GainSettingControl({ gainValue, agcValue, agcInfo }) {
   const currentMode = agcValue === "on" ? "auto" : "manual";
   const [mode, setMode, modeChanged] = useLocalSettingValue(currentMode);
@@ -1741,9 +1574,6 @@ function AudioCard() {
 
 function ReliabilityCard() {
   const d = state.data;
-  const autoRecovery = d?.auto_recovery ? "on" : "off";
-  const thresholdMode = d?.auto_threshold ? "auto" : "manual";
-  const restartThreshold = d?.restart_threshold_pkt_s ?? "";
   const scheduledReset = d?.scheduled_reset ? "on" : "off";
   const resetHours = d?.reset_hours ?? "";
   const protectionEnabled = d?.protection_enabled ? "on" : "off";
@@ -1754,21 +1584,6 @@ function ReliabilityCard() {
     <section class="card">
       <h2>${t("section.reliability")}</h2>
       <div class="setting-list">
-        <${SettingRow}
-          label=${t("reliability.auto_recovery")}
-          helpKey="reliability.help.auto_recovery"
-          note=${t("reliability.auto_recovery_group_note")}
-          className="linked-setting"
-          controls=${html`
-            <${AutoRecoverySettingControl}
-              autoRecoveryValue=${autoRecovery}
-              thresholdModeValue=${thresholdMode}
-              restartThresholdValue=${restartThreshold}
-              expectedPktRate=${d?.expected_pkt_rate}
-              recommendedRate=${d?.recommended_min_rate}
-            />
-          `}
-        />
         <${SettingRow}
           label=${t("reliability.scheduled_reset")}
           helpKey="reliability.help.scheduled_reset"

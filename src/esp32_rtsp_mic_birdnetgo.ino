@@ -174,8 +174,6 @@ unsigned long lastTempCheck = 0;
 uint32_t minFreeHeap = 0xFFFFFFFF;
 uint32_t maxPacketRate = 0;
 uint32_t minPacketRate = 0xFFFFFFFF;
-bool autoRecoveryEnabled = false;
-bool autoThresholdEnabled = true; // auto compute minAcceptableRate from sample rate and buffer size
 // Deferred reboot scheduling (to restart safely outside HTTP context)
 volatile bool scheduledFactoryReset = false;
 volatile unsigned long scheduledRebootAt = 0;
@@ -199,8 +197,6 @@ bool scheduledResetEnabled = false;
 uint32_t resetIntervalHours = 24; // Default 24 hours
 
 // -- Configurable thresholds
-uint32_t minAcceptableRate = 50;        // Minimum acceptable packet rate (restart below this)
-uint32_t performanceCheckInterval = 15; // Check interval in minutes
 uint8_t cpuFrequencyMhz = 160;          // CPU frequency (default 160 MHz — sufficient for this workload)
 
 // -- WiFi TX power (configurable)
@@ -430,33 +426,11 @@ void checkPerformance() {
     }
 
     if (rtspSenderTaskHandle != NULL && (millis() - lastStatsReset) > 30000) {
-        // Cooldown: skip performance check for 2 minutes after last I2S reset
-        if (lastI2SReset > 0 && (millis() - lastI2SReset) < 120000) {
-            return;
-        }
-
         uint32_t runtime = millis() - lastStatsReset;
         uint32_t currentRate = (audioPacketsSent * 1000) / runtime;
 
         if (currentRate > maxPacketRate) maxPacketRate = currentRate;
         if (currentRate < minPacketRate) minPacketRate = currentRate;
-
-        static uint8_t consecutiveLowCount = 0;
-        if (currentRate < minAcceptableRate) {
-            consecutiveLowCount++;
-            simplePrintln("Low packet rate: " + String(currentRate) + " < " + String(minAcceptableRate) + " pkt/s (" + String(consecutiveLowCount) + "/3)");
-
-            if (consecutiveLowCount >= 3 && autoRecoveryEnabled) {
-                simplePrintln("AUTO-RECOVERY: 3 consecutive failures, restarting I2S...");
-                consecutiveLowCount = 0;
-                restartI2S();
-                audioPacketsSent = 0;
-                lastStatsReset = millis();
-                lastI2SReset = millis();
-            }
-        } else {
-            consecutiveLowCount = 0;
-        }
     }
 }
 
@@ -513,12 +487,8 @@ void loadAudioSettings() {
     if (currentBufferSize > MAX_BUFFER_SIZE) currentBufferSize = MAX_BUFFER_SIZE;
     // i2sShiftBits is ALWAYS 0 for PDM microphones - not configurable
     i2sShiftBits = 0;
-    autoRecoveryEnabled = audioPrefs.getBool("autoRecovery", false);
     scheduledResetEnabled = audioPrefs.getBool("schedReset", false);
     resetIntervalHours = audioPrefs.getUInt("resetHours", 24);
-    minAcceptableRate = audioPrefs.getUInt("minRate", 50);
-    performanceCheckInterval = audioPrefs.getUInt("checkInterval", 15);
-    autoThresholdEnabled = audioPrefs.getBool("thrAuto", true);
     cpuFrequencyMhz = audioPrefs.getUChar("cpuFreq", 160);
     wifiTxPowerDbm = audioPrefs.getFloat("wifiTxDbm", DEFAULT_WIFI_TX_DBM);
     dcBlockerEnabled = audioPrefs.getBool("dcBlock", true);
@@ -541,9 +511,6 @@ void loadAudioSettings() {
     if (mdnsHostname.length() == 0) mdnsHostname = DEFAULT_MDNS_HOSTNAME;
     audioPrefs.end();
 
-    if (autoThresholdEnabled) {
-        minAcceptableRate = computeRecommendedMinRate();
-    }
     if (overheatLatched) {
         rtspServerEnabled = false;
     }
@@ -565,12 +532,8 @@ void saveAudioSettings() {
     audioPrefs.putFloat("gainFactor", currentGainFactor);
     audioPrefs.putUShort("bufferSize", currentBufferSize);
     audioPrefs.putUChar("shiftBits", i2sShiftBits);
-    audioPrefs.putBool("autoRecovery", autoRecoveryEnabled);
     audioPrefs.putBool("schedReset", scheduledResetEnabled);
     audioPrefs.putUInt("resetHours", resetIntervalHours);
-    audioPrefs.putUInt("minRate", minAcceptableRate);
-    audioPrefs.putUInt("checkInterval", performanceCheckInterval);
-    audioPrefs.putBool("thrAuto", autoThresholdEnabled);
     audioPrefs.putUChar("cpuFreq", cpuFrequencyMhz);
     audioPrefs.putFloat("wifiTxDbm", wifiTxPowerDbm);
     audioPrefs.putBool("dcBlock", dcBlockerEnabled);
@@ -599,21 +562,6 @@ void scheduleReboot(bool factoryReset, uint32_t delayMs) {
     scheduledRebootAt = millis() + delayMs;
 }
 
-// Compute expected packet rate based on current sample rate and buffer size
-uint32_t computeExpectedPktRate() {
-    uint32_t buf = max((uint16_t)1, currentBufferSize);
-    float expectedPktPerSec = (float)currentSampleRate / (float)buf;
-    return (uint32_t)(expectedPktPerSec + 0.5f); // round to nearest
-}
-
-// Compute recommended minimum packet-rate threshold based on current sample rate and buffer size
-uint32_t computeRecommendedMinRate() {
-    uint32_t expected = computeExpectedPktRate();
-    uint32_t rec = (uint32_t)(expected * 0.5f + 0.5f); // 50% safety margin
-    if (rec < 5) rec = 5;
-    return rec;
-}
-
 // Restore application settings to safe defaults and persist
 void resetToDefaultSettings() {
     simplePrintln("FACTORY RESET: Restoring default settings...");
@@ -629,12 +577,8 @@ void resetToDefaultSettings() {
     currentBufferSize = DEFAULT_BUFFER_SIZE;
     i2sShiftBits = 0;  // Default for PDM microphone on M5Stack Atom Echo
 
-    autoRecoveryEnabled = false;
-    autoThresholdEnabled = true;
     scheduledResetEnabled = false;
     resetIntervalHours = 24;
-    minAcceptableRate = computeRecommendedMinRate();
-    performanceCheckInterval = 15;
     cpuFrequencyMhz = 160;
     wifiTxPowerDbm = DEFAULT_WIFI_TX_DBM;
     dcBlockerEnabled = true;
@@ -1616,7 +1560,7 @@ void loop() {
         lastMemoryCheck = millis();
     }
 
-    if (millis() - lastPerformanceCheck > (performanceCheckInterval * 60000UL)) {
+    if (millis() - lastPerformanceCheck > 60000) {  // Check every 60 seconds
         checkPerformance();
         lastPerformanceCheck = millis();
     }

@@ -74,10 +74,6 @@ class FakeDeviceState:
         self.agc_enable = False
         self.agc_multiplier = 1.0
         self.led_mode = 1
-        self.restart_threshold_pkt_s = 33
-        self.auto_recovery = True
-        self.auto_threshold = True
-        self.check_interval_min = 5
         self.scheduled_reset = False
         self.reset_hours = 24
         self.cpu_mhz = 120
@@ -111,17 +107,6 @@ class FakeDeviceState:
         self.boot_at = self.offline_until
 
     def recompute_threshold_locked(self) -> None:
-        if self.auto_threshold:
-            self.restart_threshold_pkt_s = self.recommended_min_rate_locked()
-
-    def expected_rate_locked(self) -> float:
-        return self.sample_rate / max(1, self.buffer_size)
-
-    def recommended_min_rate_locked(self) -> int:
-        expected = self.expected_rate_locked()
-        rec = int(expected * 0.5 + 0.5)  # 50% safety margin
-        return max(5, rec)
-
     def effective_gain_locked(self) -> float:
         return self.gain * (self.agc_multiplier if self.agc_enable else 1.0)
 
@@ -229,13 +214,6 @@ class FakeDeviceState:
             "clip": clip,
             "clip_count": self.clip_count,
             "led_mode": self.led_mode,
-            # Perf fields
-            "restart_threshold_pkt_s": self.restart_threshold_pkt_s,
-            "expected_pkt_rate": int(round(self.expected_rate_locked())),
-            "recommended_min_rate": self.recommended_min_rate_locked(),
-            "check_interval_min": self.check_interval_min,
-            "auto_recovery": self.auto_recovery,
-            "auto_threshold": self.auto_threshold,
             "scheduled_reset": self.scheduled_reset,
             "reset_hours": self.reset_hours,
             # Thermal fields
@@ -358,25 +336,6 @@ class FakeDeviceState:
             parsed = parse_float(-1.0, 19.5)
             if parsed is not None:
                 self.wifi_tx_dbm = round(parsed, 1)
-                valid = True
-        elif key == "auto_recovery":
-            if value in {"on", "off"}:
-                self.auto_recovery = truthy(value)
-                valid = True
-        elif key == "thr_mode":
-            if value in {"auto", "manual"}:
-                self.auto_threshold = value == "auto"
-                self.recompute_threshold_locked()
-                valid = True
-        elif key == "min_rate":
-            parsed = parse_int(5, 200)
-            if parsed is not None:
-                self.restart_threshold_pkt_s = parsed
-                valid = True
-        elif key == "check_interval":
-            parsed = parse_int(1, 60)
-            if parsed is not None:
-                self.check_interval_min = parsed
                 valid = True
         elif key == "sched_reset":
             if value in {"on", "off"}:

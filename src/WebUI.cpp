@@ -32,13 +32,9 @@ extern uint16_t currentBufferSize;
 extern uint8_t i2sShiftBits;
 extern uint32_t minAcceptableRate;
 extern uint32_t performanceCheckInterval;
-extern bool autoRecoveryEnabled;
 extern uint8_t cpuFrequencyMhz;
 extern wifi_power_t currentWifiPowerLevel;
 extern void resetToDefaultSettings();
-extern bool autoThresholdEnabled;
-extern uint32_t computeExpectedPktRate();
-extern uint32_t computeRecommendedMinRate();
 extern bool scheduledResetEnabled;
 extern uint32_t resetIntervalHours;
 extern void scheduleReboot(bool factoryReset, uint32_t delayMs);
@@ -181,12 +177,6 @@ static void httpState() {
     doc["clip"]                    = audioClippedLastBlock;
     doc["clip_count"]              = audioClipCount;
     doc["led_mode"]                = ledMode;
-    doc["restart_threshold_pkt_s"] = minAcceptableRate;
-    doc["expected_pkt_rate"]       = computeExpectedPktRate();
-    doc["recommended_min_rate"]    = computeRecommendedMinRate();
-    doc["check_interval_min"]      = performanceCheckInterval;
-    doc["auto_recovery"]           = autoRecoveryEnabled;
-    doc["auto_threshold"]          = autoThresholdEnabled;
     doc["scheduled_reset"]         = scheduledResetEnabled;
     doc["reset_hours"]             = resetIntervalHours;
     if (lastTemperatureValid) { doc["current_c"] = lastTemperatureC; } else { doc["current_c"] = nullptr; }
@@ -288,14 +278,10 @@ static void httpSet() {
     bool valid = false;
     if (val.length()) { webui_pushLog(String("UI set: ")+key+"="+val); }
     if (key == "gain") { matched=true; float v; if (argToFloat("value", v) && v>=0.1f && v<=100.0f) { valid=true; currentGainFactor=v; saveAudioSettings(); restartI2S(); } }
-    else if (key == "rate") { matched=true; uint32_t v; if (argToUInt("value", v) && v>=8000 && v<=48000) { valid=true; currentSampleRate=v; if (autoThresholdEnabled) { minAcceptableRate = computeRecommendedMinRate(); } saveAudioSettings(); restartI2S(); } }
-    else if (key == "buffer") { matched=true; uint16_t v; if (argToUShort("value", v) && v>=256 && v<=9600) { valid=true; currentBufferSize=v; if (autoThresholdEnabled) { minAcceptableRate = computeRecommendedMinRate(); } saveAudioSettings(); restartI2S(); } }
+    else if (key == "rate") { matched=true; uint32_t v; if (argToUInt("value", v) && v>=8000 && v<=48000) { valid=true; currentSampleRate=v; saveAudioSettings(); restartI2S(); } }
+    else if (key == "buffer") { matched=true; uint16_t v; if (argToUShort("value", v) && v>=256 && v<=9600) { valid=true; currentBufferSize=v; saveAudioSettings(); restartI2S(); } }
     // i2sShiftBits removed - fixed at 0 for PDM microphones
     else if (key == "wifi_tx") { matched=true; float v; if (argToFloat("value", v) && v>=-1.0f && v<=19.5f) { valid=true; extern float wifiTxPowerDbm; wifiTxPowerDbm = snapWifiTxDbm(v); applyWifiTxPower(true); saveAudioSettings(); } }
-    else if (key == "auto_recovery") { matched=true; String v=web.arg("value"); if (v=="on"||v=="off") { valid=true; autoRecoveryEnabled=(v=="on"); saveAudioSettings(); } }
-    else if (key == "thr_mode") { matched=true; String v=web.arg("value"); if (v=="auto") { valid=true; autoThresholdEnabled=true; minAcceptableRate = computeRecommendedMinRate(); saveAudioSettings(); } else if (v=="manual") { valid=true; autoThresholdEnabled=false; saveAudioSettings(); } }
-    else if (key == "min_rate") { matched=true; uint32_t v; if (argToUInt("value", v) && v>=5 && v<=200) { valid=true; minAcceptableRate=v; saveAudioSettings(); } }
-    else if (key == "check_interval") { matched=true; uint32_t v; if (argToUInt("value", v) && v>=1 && v<=60) { valid=true; performanceCheckInterval=v; saveAudioSettings(); } }
     else if (key == "sched_reset") { matched=true; String v=web.arg("value"); if (v=="on"||v=="off") { valid=true; extern bool scheduledResetEnabled; scheduledResetEnabled=(v=="on"); saveAudioSettings(); } }
     else if (key == "reset_hours") { matched=true; uint32_t v; if (argToUInt("value", v) && v>=1 && v<=168) { valid=true; extern uint32_t resetIntervalHours; resetIntervalHours=v; saveAudioSettings(); } }
     else if (key == "cpu_freq") { matched=true; uint32_t v; if (argToUInt("value", v) && v>=40 && v<=240) { valid=true; cpuFrequencyMhz=(uint8_t)v; setCpuFrequencyMhz(cpuFrequencyMhz); saveAudioSettings(); } }
