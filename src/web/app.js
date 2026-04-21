@@ -1703,7 +1703,7 @@ function AdvancedCard() {
 
 function LogsCard() {
   return html`
-    <section class="card">
+    <section class="card card-full-width">
       <h2>${t("section.logs")}</h2>
       <p class="card-intro">${t("logs.help")}</p>
       <div class="logs-panel">
@@ -1726,10 +1726,11 @@ function App() {
       ${state.error ? html`<div class="banner error">${state.error}</div>` : null}
       ${state.info ? html`<div class="banner info">${state.info}</div>` : null}
 
+      <${LogsCard} />
+
       <div class="page-grid">
         <${AudioCard} />
         <${ReliabilityCard} />
-        <${LogsCard} />
         <${AdvancedCard} />
       </div>
     </main>

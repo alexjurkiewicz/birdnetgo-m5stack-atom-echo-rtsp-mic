@@ -260,6 +260,12 @@ button.button-warn {
   margin-top: 1.8rem;
 }
 
+.card-full-width {
+  width: 100%;
+  margin-top: 1.8rem;
+  margin-bottom: 0;
+}
+
 .card h2 {
   margin-top: 0;
   margin-bottom: 1.2rem;
