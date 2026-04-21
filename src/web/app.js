@@ -1904,8 +1904,8 @@ function App() {
       <div class="page-grid">
         <${AudioCard} />
         <${ReliabilityCard} />
-        <${AdvancedCard} />
         <${LogsCard} />
+        <${AdvancedCard} />
       </div>
     </main>
 
