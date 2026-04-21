@@ -711,14 +711,6 @@ function handleLanguageChange(event) {
   rerender();
 }
 
-function profileLabel(bufferSize) {
-  const value = Number(bufferSize) || 0;
-  if (value <= 256) return t("audio.profile_ultra");
-  if (value <= 512) return t("audio.profile_balanced");
-  if (value <= 1024) return t("audio.profile_stable");
-  return t("audio.profile_high");
-}
-
 function boolPill(value, yesLabel, noLabel) {
   return renderPill(value ? yesLabel : noLabel, value ? "ok" : "bad");
 }
@@ -1629,12 +1621,6 @@ function AudioCard() {
       </div>
 
       <div class="page-grid" style="margin-top: 1.6rem;">
-        <div class="summary-tile">
-          <span class="summary-label">${t("audio.profile")}</span>
-          <span class="summary-value">
-            ${d ? profileLabel(d.buffer_size) : t("common.loading")}
-          </span>
-        </div>
         <div class="summary-tile">
           <span class="summary-label">${t("audio.signal_level")}</span>
           <div class="summary-value" style="font-size: 1.6rem;">
