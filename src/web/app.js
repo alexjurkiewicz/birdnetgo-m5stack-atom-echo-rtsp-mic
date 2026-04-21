@@ -53,7 +53,7 @@
           help_gain: "Amplifies audio after I²S shift; too high clips.",
           help_buf: "More samples per packet = higher latency, more stability.",
           help_auto: "Auto-restarts the pipeline when packet-rate collapses.",
-          help_tx: "Wi‑Fi TX power; lowering can reduce RF noise.",
+          help_tx: "Wi-Fi TX power; lowering can reduce RF noise.",
           help_shift: "Digital right shift applied before scaling.",
           help_thr: "Minimum packet-rate before auto-recovery triggers.",
           help_chk: "How often performance is checked.",
@@ -69,12 +69,12 @@
           therm_last: "Last Shutdown",
           therm_status_ready: "Protection ready",
           therm_status_disabled: "Protection disabled",
-          therm_status_latched: "Cooling required – restart manually",
-          therm_status_sensor_fault: "Sensor unavailable – protection paused",
+          therm_status_latched: "Cooling required - restart manually",
+          therm_status_sensor_fault: "Sensor unavailable - protection paused",
           therm_status_latched_persist:
             "Protection latched — acknowledge to re-enable",
           therm_hint:
-            "80 °C suits most ESP32 boards; drop to 70–75 °C for sealed enclosures.",
+            "80 °C suits most ESP32 boards; drop to 70-75 °C for sealed enclosures.",
           therm_last_none: "No shutdown recorded yet.",
           therm_last_fmt:
             "Stopped at %TEMP% °C (limit %LIMIT% °C) after %TIME% uptime (%AGO%).",
@@ -88,7 +88,7 @@
           help_therm_protect:
             "Automatically stops streaming when the ESP32 exceeds the limit to protect the board and microphone preamp.",
           help_therm_limit:
-            "Temperature threshold for thermal shutdown. 80 °C is a safe default; use 70–75 °C if airflow is poor.",
+            "Temperature threshold for thermal shutdown. 80 °C is a safe default; use 70-75 °C if airflow is poor.",
         },
         cs: {
           title: "ESP32 RTSP Mic pro BirdNET-Go",
@@ -145,7 +145,7 @@
           help_gain: "Zesílení po I²S posunu; příliš vysoké klipuje.",
           help_buf: "Více vzorků v paketu = vyšší latence, větší stabilita.",
           help_auto: "Při poklesu rychlosti paketů dojde k obnově.",
-          help_tx: "Výkon vysílače Wi‑Fi; snížení může zlepšit šum.",
+          help_tx: "Výkon vysílače Wi-Fi; snížení může zlepšit šum.",
           help_shift: "Digitální bitový posun před škálováním.",
           help_thr: "Minimální rychlost paketů pro spuštění obnovy.",
           help_chk: "Jak často se provádí kontrola výkonu.",
@@ -161,13 +161,13 @@
           therm_last: "Poslední zásah",
           therm_status_ready: "Ochrana připravena",
           therm_status_disabled: "Ochrana vypnuta",
-          therm_status_latched: "Přehřátí – nejprve vychlaďte a spusťte ručně",
+          therm_status_latched: "Přehřátí - nejprve vychlaďte a spusťte ručně",
           therm_status_sensor_fault:
-            "Senzor teploty nedostupný – ochrana pozastavena",
+            "Senzor teploty nedostupný - ochrana pozastavena",
           therm_status_latched_persist:
-            "Ochrana zůstává blokovaná – potvrďte znovuspuštění",
+            "Ochrana zůstává blokovaná - potvrďte znovuspuštění",
           therm_hint:
-            "80 °C je bezpečné pro většinu ESP32; v uzavřených krabičkách volte 70–75 °C.",
+            "80 °C je bezpečné pro většinu ESP32; v uzavřených krabičkách volte 70-75 °C.",
           therm_last_none: "Zatím žádné přehřátí.",
           therm_last_fmt:
             "Stream vypnut při %TEMP% °C (limit %LIMIT% °C) po %TIME% běhu (%AGO%).",
@@ -181,7 +181,7 @@
           help_therm_protect:
             "Při překročení limitu zastaví stream, aby chránila desku a předzesilovač.",
           help_therm_limit:
-            "Teplota, při které se stream vypne. 80 °C vyhoví odkrytým deskám; v teplém prostředí nastavte 70–75 °C.",
+            "Teplota, při které se stream vypne. 80 °C vyhoví odkrytým deskám; v teplém prostředí nastavte 70-75 °C.",
         },
       };
       const HELP_EXT_EN = {
@@ -199,19 +199,19 @@
         help_hpf:
           "High-pass filter (2nd-order, ~12 dB/oct) removes low-frequency rumble such as distant traffic, wind or handling noise. Turn ON to attenuate frequencies below the cutoff while keeping most bird vocalizations intact.",
         help_hpf_cut:
-          "Cutoff frequency for the high-pass filter. Default 80 Hz removes only DC and infrasound — BirdNET-Go's low-frequency spectrogram covers 0–3 kHz and the model was trained on unfiltered audio, so a higher cutoff (e.g. 300 Hz) removes useful signal for owls, bitterns, and other low-calling species. Raise to 300–600 Hz only to combat strong wind or traffic noise.",
+          "Cutoff frequency for the high-pass filter. Default 80 Hz removes only DC and infrasound — BirdNET-Go's low-frequency spectrogram covers 0-3 kHz and the model was trained on unfiltered audio, so a higher cutoff (e.g. 300 Hz) removes useful signal for owls, bitterns, and other low-calling species. Raise to 300-600 Hz only to combat strong wind or traffic noise.",
         help_rate:
           "How many audio samples per second are captured. 48 kHz is the recommended default and hardware maximum — the SPM1423 PDM clock tops out at 3.25 MHz with 64× oversampling (48 kHz × 64 = 3.072 MHz). BirdNET-Go natively processes up to 15 kHz, so 48 kHz gives full coverage with no upsampling artefacts.",
         help_gain:
           "Software amplification after the I2S shift. Use to boost loudness. Too high causes clipping (distortion). With default shift, 1.0× is neutral. Adjust while watching the stream.",
         help_buf:
-          "Samples per network packet. Bigger buffer increases latency but improves stability on weak Wi‑Fi; smaller buffer lowers latency but may drop packets. Default 9600 gives ~200 ms at 48 kHz. A larger buffer may also help reduce periodic high-frequency clicking from the PDM microphone.",
+          "Samples per network packet. Bigger buffer increases latency but improves stability on weak Wi-Fi; smaller buffer lowers latency but may drop packets. Default 9600 gives ~200 ms at 48 kHz. A larger buffer may also help reduce periodic high-frequency clicking from the PDM microphone.",
         help_auto:
           "When enabled, the device restarts the audio pipeline if packet rate drops below the threshold. Helps recover from glitches without manual intervention.",
         help_tx:
-          "Wi‑Fi transmit power in dBm. Lower values can reduce RF self-noise near the microphone and power draw, but reduce range. Only specific steps are supported by the radio. Change carefully if your signal is weak.",
+          "Wi-Fi transmit power in dBm. Lower values can reduce RF self-noise near the microphone and power draw, but reduce range. Only specific steps are supported by the radio. Change carefully if your signal is weak.",
         help_shift:
-          "Right bit-shift applied to 32‑bit I2S samples before converting to 16‑bit. Higher shift lowers volume and avoids clipping; lower shift raises volume but may clip.",
+          "Right bit-shift applied to 32-bit I2S samples before converting to 16-bit. Higher shift lowers volume and avoids clipping; lower shift raises volume but may clip.",
         help_thr:
           "Minimum packet rate (packets per second) considered healthy while streaming. If measured rate stays below this at a check, auto recovery restarts I2S. In Auto mode this comes from sample rate and buffer size (about 70% of expected).",
         help_chk:
@@ -226,12 +226,12 @@
           "Auto: Threshold is computed from Sample Rate and Buffer; recommended for most users. Manual: You set the exact minimum packet rate; use if you know your network and latency constraints.",
         level: "Signal Level",
         help_level:
-          "Shows the highest peak since last update. Aim for 60–80% (about −4 to −2 dBFS). If it says CLIPPING, increase I2S Shift or reduce Gain. Turning ON the High‑pass (500–600 Hz) often helps.",
+          "Shows the highest peak since last update. Aim for 60-80% (about -4 to -2 dBFS). If it says CLIPPING, increase I2S Shift or reduce Gain. Turning ON the High-pass (500-600 Hz) often helps.",
         clip_ok: "OK",
         clip_warn:
           "High level — close to clipping (reduce Gain or increase I2S Shift).",
         clip_bad:
-          "CLIPPING! Increase I2S Shift or reduce Gain; try High‑pass 500–600 Hz.",
+          "CLIPPING! Increase I2S Shift or reduce Gain; try High-pass 500-600 Hz.",
       };
       const HELP_EXT_CS = {
         dcb: "DC blocker",
@@ -254,11 +254,11 @@
         help_gain:
           "Softwarové zesílení po I2S posunu. 1,0× je neutrální s výchozím posunem. Příliš vysoká hodnota způsobí ořez (zkreslení). Upravujte podle poslechu a spektra.",
         help_buf:
-          "Počet vzorků v jednom síťovém paketu. Větší buffer zvyšuje latenci a zlepšuje stabilitu na slabším Wi‑Fi; menší buffer snižuje latenci, ale může zvyšovat ztráty paketů. Výchozí hodnota 9600 odpovídá ~200 ms při 48 kHz. Větší buffer může také pomoci omezit periodické vysokofrekvenční klikání z PDM mikrofonu.",
+          "Počet vzorků v jednom síťovém paketu. Větší buffer zvyšuje latenci a zlepšuje stabilitu na slabším Wi-Fi; menší buffer snižuje latenci, ale může zvyšovat ztráty paketů. Výchozí hodnota 9600 odpovídá ~200 ms při 48 kHz. Větší buffer může také pomoci omezit periodické vysokofrekvenční klikání z PDM mikrofonu.",
         help_auto:
           "Při poklesu rychlosti odchozích paketů pod práh zařízení automaticky restartuje audio pipeline. Pomáhá zotavit se z výpadků bez zásahu.",
         help_tx:
-          "Vysílací výkon Wi‑Fi v dBm. Snížení může omezit vlastní RF šum u mikrofonu a spotřebu, ale zmenší dosah. Čip podporuje jen určité kroky. Pokud máte slabý signál, měňte opatrně.",
+          "Vysílací výkon Wi-Fi v dBm. Snížení může omezit vlastní RF šum u mikrofonu a spotřebu, ale zmenší dosah. Čip podporuje jen určité kroky. Pokud máte slabý signál, měňte opatrně.",
         help_shift:
           "Pravý bitový posun na 32bitových I2S vzorcích před převodem na 16bit audio. Vyšší posun snižuje hlasitost a brání klipování; nižší posun zvyšuje hlasitost, ale může klipovat.",
         help_thr:
@@ -275,12 +275,12 @@
           "Auto: Práh restartu se počítá z Vzorkovací frekvence a Bufferu; doporučeno pro většinu uživatelů. Manuálně: Nastavíte přesný minimální počet paketů za sekundu; použijte, pokud znáte svou síť a požadavky na latenci.",
         level: "Úroveň signálu",
         help_level:
-          "Zobrazuje nejvyšší špičku od poslední obnovy. Cíl je 60–80 % (asi −4 až −2 dBFS). Při CLIPPING zvyšte I2S posun nebo snižte Gain. Často pomůže zapnout High‑pass (500–600 Hz).",
+          "Zobrazuje nejvyšší špičku od poslední obnovy. Cíl je 60-80 % (asi -4 až -2 dBFS). Při CLIPPING zvyšte I2S posun nebo snižte Gain. Často pomůže zapnout High-pass (500-600 Hz).",
         clip_ok: "OK",
         clip_warn:
           "Vysoká úroveň — blízko klipu (snižte Gain nebo zvyšte I2S posun).",
         clip_bad:
-          "CLIPPING! Zvyšte I2S posun nebo snižte Gain; zkuste High‑pass 500–600 Hz.",
+          "CLIPPING! Zvyšte I2S posun nebo snižte Gain; zkuste High-pass 500-600 Hz.",
       };
       Object.assign(T.en, HELP_EXT_EN);
       Object.assign(T.cs, HELP_EXT_CS);
