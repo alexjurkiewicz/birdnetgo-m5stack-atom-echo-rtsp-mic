@@ -258,6 +258,10 @@ const I18N_CONFIG = {
       en: "Number of hours between scheduled restarts.",
       cs: "Počet hodin mezi plánovanými restarty.",
     },
+    "reliability.scheduled_reset_group_note": {
+      en: "Reset After is available only when Scheduled Reset is enabled.",
+      cs: "Možnost Po kolika hodinách je dostupná jen při zapnutém Plánovaném restartu.",
+    },
     "reliability.recommended_threshold": {
       en: "Recommended threshold: {value} pkt/s",
       cs: "Doporučený práh: {value} pkt/s",
@@ -286,6 +290,10 @@ const I18N_CONFIG = {
     "thermal.help.shutdown_limit": {
       en: "80 °C is a safe default for most open boards. Use 70–75 °C in tight enclosures.",
       cs: "80 °C je bezpečná výchozí hodnota pro většinu odkrytých desek. V uzavřených krabičkách použijte 70–75 °C.",
+    },
+    "thermal.protection_group_note": {
+      en: "Shutdown Limit is available only when Overheat Protection is enabled.",
+      cs: "Vypínací teplota je dostupná jen při zapnuté Ochraně proti přehřátí.",
     },
     "thermal.status_ready": {
       en: "Protection ready",
@@ -1154,6 +1162,164 @@ function HighPassSettingControl({ enabledValue, cutoffValue }) {
   `;
 }
 
+function ScheduledResetSettingControl({ enabledValue, hoursValue }) {
+  const [enabled, setEnabled, enabledChanged] = useLocalSettingValue(enabledValue);
+  const [hours, setHours, hoursChanged] = useLocalSettingValue(hoursValue);
+  const [savingEnabled, setSavingEnabled] = useState(false);
+  const [savingHours, setSavingHours] = useState(false);
+  const resetEnabled = isBinaryOn(enabled);
+  const invalidHours = resetEnabled && !isFieldValid("reset_hours", hours);
+
+  async function submitEnabled(event) {
+    event.preventDefault();
+    if (savingEnabled || !enabledChanged) return;
+    setSavingEnabled(true);
+    try {
+      await saveSetting("sched_reset", resetEnabled ? "on" : "off");
+    } catch (_error) {
+      // Global error banner is already updated by the save helper.
+    } finally {
+      setSavingEnabled(false);
+    }
+  }
+
+  async function submitHours(event) {
+    event.preventDefault();
+    if (savingHours || !hoursChanged || invalidHours || !resetEnabled) return;
+    setSavingHours(true);
+    try {
+      await saveSetting("reset_hours", hours);
+    } catch (_error) {
+      // Global error banner is already updated by the save helper.
+    } finally {
+      setSavingHours(false);
+    }
+  }
+
+  return html`
+    <div class="control-stack">
+      <form class="field-inline checkbox-inline" onSubmit=${submitEnabled}>
+        <label class="checkbox-control">
+          <input
+            type="checkbox"
+            checked=${resetEnabled}
+            disabled=${savingEnabled}
+            onChange=${(event) =>
+              setEnabled(event.currentTarget.checked ? "on" : "off")}
+          />
+          <span class="checkbox-label">
+            ${resetEnabled ? t("binary.enabled") : t("binary.disabled")}
+          </span>
+        </label>
+        <${PendingSetButton}
+          disabled=${savingEnabled || !enabledChanged}
+          label=${t("common.set")}
+        />
+      </form>
+
+      <div class=${`linked-controls ${resetEnabled ? "" : "linked-controls-disabled"}`.trim()}>
+        <span class="field-subtitle">${t("reliability.reset_hours")}</span>
+        <p class="setting-help">${t("reliability.help.reset_hours")}</p>
+        <form class="field-inline" onSubmit=${submitHours}>
+          <input
+            class=${invalidHours ? "invalid-input" : ""}
+            type="number"
+            min="1"
+            max="168"
+            step="1"
+            value=${hours}
+            disabled=${savingHours || !resetEnabled}
+            aria-invalid=${invalidHours ? "true" : "false"}
+            onInput=${(event) => setHours(event.currentTarget.value)}
+          />
+          <span class="field-unit">h</span>
+          <${PendingSetButton}
+            disabled=${savingHours || invalidHours || !resetEnabled || !hoursChanged}
+            label=${t("common.set")}
+          />
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+function ThermalProtectionSettingControl({ enabledValue, limitValue }) {
+  const [enabled, setEnabled, enabledChanged] = useLocalSettingValue(enabledValue);
+  const [limit, setLimit, limitChanged] = useLocalSettingValue(limitValue);
+  const [savingEnabled, setSavingEnabled] = useState(false);
+  const [savingLimit, setSavingLimit] = useState(false);
+  const protectionEnabled = isBinaryOn(enabled);
+
+  async function submitEnabled(event) {
+    event.preventDefault();
+    if (savingEnabled || !enabledChanged) return;
+    setSavingEnabled(true);
+    try {
+      await saveSetting("oh_enable", protectionEnabled ? "on" : "off");
+    } catch (_error) {
+      // Global error banner is already updated by the save helper.
+    } finally {
+      setSavingEnabled(false);
+    }
+  }
+
+  async function submitLimit(event) {
+    event.preventDefault();
+    if (savingLimit || !limitChanged || !protectionEnabled) return;
+    setSavingLimit(true);
+    try {
+      await saveSetting("oh_limit", limit);
+    } catch (_error) {
+      // Global error banner is already updated by the save helper.
+    } finally {
+      setSavingLimit(false);
+    }
+  }
+
+  return html`
+    <div class="control-stack">
+      <form class="field-inline checkbox-inline" onSubmit=${submitEnabled}>
+        <label class="checkbox-control">
+          <input
+            type="checkbox"
+            checked=${protectionEnabled}
+            disabled=${savingEnabled}
+            onChange=${(event) =>
+              setEnabled(event.currentTarget.checked ? "on" : "off")}
+          />
+          <span class="checkbox-label">
+            ${protectionEnabled ? t("binary.enabled") : t("binary.disabled")}
+          </span>
+        </label>
+        <${PendingSetButton}
+          disabled=${savingEnabled || !enabledChanged}
+          label=${t("common.set")}
+        />
+      </form>
+
+      <div class=${`linked-controls ${protectionEnabled ? "" : "linked-controls-disabled"}`.trim()}>
+        <span class="field-subtitle">${t("thermal.shutdown_limit")}</span>
+        <p class="setting-help">${t("thermal.help.shutdown_limit")}</p>
+        <form class="field-inline" onSubmit=${submitLimit}>
+          <select
+            disabled=${savingLimit || !protectionEnabled}
+            value=${limit}
+            onChange=${(event) => setLimit(event.currentTarget.value)}
+          >
+            ${THERMAL_LIMIT_OPTIONS.map(
+              (value) => html`<option value=${value}>${value} °C</option>`
+            )}
+          </select>
+          <${PendingSetButton}
+            disabled=${savingLimit || !protectionEnabled || !limitChanged}
+            label=${t("common.set")}
+          />
+        </form>
+      </div>
+    </div>
+  `;
+}
+
 function GainSettingControl({ gainValue, agcValue, agcInfo }) {
   const currentMode = agcValue === "on" ? "auto" : "manual";
   const [mode, setMode, modeChanged] = useLocalSettingValue(currentMode);
@@ -1514,27 +1680,12 @@ function ReliabilityCard() {
         <${SettingRow}
           label=${t("reliability.scheduled_reset")}
           helpKey="reliability.help.scheduled_reset"
+          note=${t("reliability.scheduled_reset_group_note")}
+          className="linked-setting"
           controls=${html`
-            <${CheckboxSettingControl}
-              fieldKey="sched_reset"
-              currentValue=${scheduledReset}
-              saveLabel=${t("common.set")}
-            />
-          `}
-        />
-        <${SettingRow}
-          label=${t("reliability.reset_hours")}
-          helpKey="reliability.help.reset_hours"
-          controls=${html`
-            <${TextSettingControl}
-              fieldKey="reset_hours"
-              currentValue=${resetHours}
-              type="number"
-              min="1"
-              max="168"
-              step="1"
-              unit="h"
-              saveLabel=${t("common.set")}
+            <${ScheduledResetSettingControl}
+              enabledValue=${scheduledReset}
+              hoursValue=${resetHours}
             />
           `}
         />
@@ -1556,24 +1707,12 @@ function ThermalCard() {
         <${SettingRow}
           label=${t("thermal.overheat_protection")}
           helpKey="thermal.help.overheat_protection"
+          note=${t("thermal.protection_group_note")}
+          className="linked-setting"
           controls=${html`
-            <${CheckboxSettingControl}
-              fieldKey="oh_enable"
-              currentValue=${enableValue}
-              saveLabel=${t("common.set")}
-            />
-          `}
-        />
-        <${SettingRow}
-          label=${t("thermal.shutdown_limit")}
-          helpKey="thermal.help.shutdown_limit"
-          controls=${html`
-            <${SelectSettingControl}
-              fieldKey="oh_limit"
-              currentValue=${limitValue}
-              options=${THERMAL_LIMIT_OPTIONS}
-              formatOption=${(value) => `${value} °C`}
-              saveLabel=${t("common.set")}
+            <${ThermalProtectionSettingControl}
+              enabledValue=${enableValue}
+              limitValue=${limitValue}
             />
           `}
         />
