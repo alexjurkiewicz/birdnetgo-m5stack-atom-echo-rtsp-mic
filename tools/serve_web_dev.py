@@ -186,11 +186,25 @@ class FakeDeviceState:
         if clip:
             self.clip_count += 1
 
-    def status_payload_locked(self) -> dict[str, object]:
+    def state_payload_locked(self) -> dict[str, object]:
+        """Returns all device state as a flat JSON object."""
         self.update_dynamic_state_locked()
         elapsed = max(0.0, time.monotonic() - self.boot_at)
         current_rate = round(self.expected_rate_locked()) if self.streaming else 0
+        
+        # Audio metrics
+        phase = elapsed / 6.0
+        peak_base = 28 + 18 * (math.sin(phase) + 1.0)
+        peak_pct = clamp(
+            peak_base * clamp(self.effective_gain_locked() / 3.0, 0.6, 3.0),
+            4.0,
+            100.0,
+        ) if self.streaming else 0.0
+        clip = peak_pct >= 98.0
+        peak_ratio = max(peak_pct / 100.0, 0.0001)
+        
         return {
+            # Status fields
             "fw_version": self.fw_version,
             "ip": self.ip,
             "wifi_rssi": self.wifi_rssi,
@@ -201,27 +215,12 @@ class FakeDeviceState:
             "rtsp_server_enabled": self.rtsp_server_enabled,
             "client": self.client_ip,
             "streaming": self.streaming,
-            "temp_c": self.current_temp_c,
             "dropped_packets": 0,
             "current_rate_pkt_s": current_rate,
             "last_rtsp_connect": f"{int(max(0, elapsed - 25))}s ago",
             "last_stream_start": f"{int(max(0, elapsed - 12))}s ago",
             "mdns_hostname": self.mdns_hostname,
-        }
-
-    def audio_payload_locked(self) -> dict[str, object]:
-        self.update_dynamic_state_locked()
-        elapsed = max(0.0, time.monotonic() - self.boot_at)
-        phase = elapsed / 6.0
-        peak_base = 28 + 18 * (math.sin(phase) + 1.0)
-        peak_pct = clamp(
-            peak_base * clamp(self.effective_gain_locked() / 3.0, 0.6, 3.0),
-            4.0,
-            100.0,
-        ) if self.streaming else 0.0
-        clip = peak_pct >= 98.0
-        peak_ratio = max(peak_pct / 100.0, 0.0001)
-        return {
+            # Audio fields
             "sample_rate": self.sample_rate,
             "gain": round(self.gain, 2),
             "buffer_size": self.buffer_size,
@@ -239,11 +238,7 @@ class FakeDeviceState:
             "clip": clip,
             "clip_count": self.clip_count,
             "led_mode": self.led_mode,
-        }
-
-    def perf_payload_locked(self) -> dict[str, object]:
-        self.update_dynamic_state_locked()
-        return {
+            # Perf fields
             "restart_threshold_pkt_s": self.restart_threshold_pkt_s,
             "check_interval_min": self.check_interval_min,
             "auto_recovery": self.auto_recovery,
@@ -251,11 +246,7 @@ class FakeDeviceState:
             "recommended_min_rate": self.recommended_min_rate_locked(),
             "scheduled_reset": self.scheduled_reset,
             "reset_hours": self.reset_hours,
-        }
-
-    def thermal_payload_locked(self) -> dict[str, object]:
-        self.update_dynamic_state_locked()
-        return {
+            # Thermal fields
             "current_c": self.current_temp_c,
             "current_valid": not self.sensor_fault,
             "max_c": round(self.max_temp_c, 1),
@@ -270,10 +261,9 @@ class FakeDeviceState:
             "last_trip_ts": self.last_trip_timestamp,
             "last_trip_since": self.last_trip_uptime,
             "manual_restart": self.manual_restart,
+            # Logs as array
+            "logs": list(self.logs),
         }
-
-    def logs_text_locked(self) -> str:
-        return "\n".join(self.logs) + ("\n" if self.logs else "")
 
     def clear_thermal_latch_locked(self) -> dict[str, object]:
         if not self.latched_persist:
@@ -512,20 +502,8 @@ class DevRequestHandler(BaseHTTPRequestHandler):
                 )
                 return
 
-            if path == "/api/status":
-                self.send_json(HTTPStatus.OK, self.device.status_payload_locked())
-                return
-            if path == "/api/audio_status":
-                self.send_json(HTTPStatus.OK, self.device.audio_payload_locked())
-                return
-            if path == "/api/perf_status":
-                self.send_json(HTTPStatus.OK, self.device.perf_payload_locked())
-                return
-            if path == "/api/thermal":
-                self.send_json(HTTPStatus.OK, self.device.thermal_payload_locked())
-                return
-            if path == "/api/logs":
-                self.send_text(HTTPStatus.OK, self.device.logs_text_locked())
+            if path == "/api/state":
+                self.send_json(HTTPStatus.OK, self.device.state_payload_locked())
                 return
             if path.startswith("/api/action/"):
                 action = path.rsplit("/", 1)[-1]
