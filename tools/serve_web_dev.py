@@ -92,7 +92,6 @@ class FakeDeviceState:
         self.last_rtsp_connect_at = now - 320
         self.last_stream_start_at = now - 300
         self.clip_count = 0
-        self.recompute_threshold_locked()
         if initial:
             self.logs = []
         self.log_locked("Development server ready")
@@ -166,7 +165,7 @@ class FakeDeviceState:
         """Returns all device state as a flat JSON object."""
         self.update_dynamic_state_locked()
         elapsed = max(0.0, time.monotonic() - self.boot_at)
-        current_rate = round(self.expected_rate_locked()) if self.streaming else 0
+        current_rate = round(self.sample_rate / max(1, self.buffer_size)) if self.streaming else 0
         
         # Audio metrics
         phase = elapsed / 6.0
@@ -323,13 +322,11 @@ class FakeDeviceState:
             parsed = parse_int(8000, 48000)
             if parsed is not None:
                 self.sample_rate = parsed
-                self.recompute_threshold_locked()
                 valid = True
         elif key == "buffer":
             parsed = parse_int(256, 9600)
             if parsed is not None:
                 self.buffer_size = parsed
-                self.recompute_threshold_locked()
                 valid = True
         elif key == "wifi_tx":
             parsed = parse_float(-1.0, 19.5)
