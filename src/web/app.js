@@ -22,7 +22,7 @@ const I18N_CONFIG = {
     "app.language": { en: "Language", cs: "Jazyk" },
     "app.rtsp_url": { en: "RTSP URL", cs: "RTSP URL" },
     "app.summary.server": { en: "Server", cs: "Server" },
-    "app.summary.streaming": { en: "Streaming", cs: "Streamování" },
+    "app.summary.streaming_client": { en: "Streaming Client", cs: "Streaming klient" },
     "app.summary.packet_rate": { en: "Packet Rate", cs: "Rychlost paketů" },
     "app.summary.temperature": { en: "Temperature", cs: "Teplota" },
     "common.loading": { en: "Loading…", cs: "Načítání…" },
@@ -100,8 +100,7 @@ const I18N_CONFIG = {
     "section.advanced": { en: "Advanced", cs: "Pokročilé" },
     "section.logs": { en: "Logs", cs: "Logy" },
     "status.ip": { en: "IP Address", cs: "IP adresa" },
-    "status.wifi_rssi": { en: "WiFi RSSI", cs: "WiFi RSSI" },
-    "status.wifi_tx": { en: "WiFi TX Power", cs: "WiFi výkon" },
+    "status.wifi": { en: "WiFi", cs: "WiFi" },
     "status.heap": { en: "Free Heap (min)", cs: "Volná RAM (min)" },
     "status.uptime": { en: "Uptime", cs: "Doba běhu" },
     "status.rtsp_server": { en: "RTSP Server", cs: "RTSP server" },
@@ -789,11 +788,13 @@ function summaryTiles() {
         : t("common.loading"),
     },
     {
-      label: t("app.summary.streaming"),
+      label: t("app.summary.streaming_client"),
       value: d
-        ? d.streaming
-          ? t("status.streaming_yes")
-          : t("status.streaming_no")
+        ? d.streaming && d.client
+          ? d.client
+          : d.streaming
+            ? t("status.streaming_yes")
+            : t("status.streaming_no")
         : t("common.loading"),
     },
     {
@@ -815,10 +816,11 @@ function renderStatusRows() {
   const d = state.data;
   return [
     [t("status.ip"), d?.ip || t("common.loading")],
-    [t("status.wifi_rssi"), d ? `${d.wifi_rssi} dBm` : t("common.loading")],
     [
-      t("status.wifi_tx"),
-      d ? `${formatNumber(d.wifi_tx_dbm, 1)} dBm` : t("common.loading"),
+      t("status.wifi"),
+      d
+        ? `RSSI: ${d.wifi_rssi} dBm, TX: ${formatNumber(d.wifi_tx_dbm, 1)} dBm`
+        : t("common.loading"),
     ],
     [
       t("status.heap"),
@@ -827,34 +829,10 @@ function renderStatusRows() {
         : t("common.loading"),
     ],
     [t("status.uptime"), d?.uptime || t("common.loading")],
-    [
-      t("status.rtsp_server"),
-      d
-        ? boolPill(
-            d.rtsp_server_enabled,
-            t("status.server_enabled"),
-            t("status.server_disabled"),
-          )
-        : renderPill(t("common.loading"), "neutral"),
-    ],
-    [t("status.client"), d?.client || t("common.waiting")],
-    [
-      t("status.streaming"),
-      d
-        ? boolPill(
-            d.streaming,
-            t("status.streaming_yes"),
-            t("status.streaming_no"),
-          )
-        : renderPill(t("common.loading"), "neutral"),
-    ],
-    [
-      t("status.packet_rate"),
-      d ? `${d.current_rate_pkt_s} pkt/s` : t("common.loading"),
-    ],
     [t("status.last_connect"), d?.last_rtsp_connect || t("common.waiting")],
     [t("status.last_play"), d?.last_stream_start || t("common.waiting")],
     [t("thermal.last"), d ? formatThermalLast(d) : t("common.loading")],
+    [t("audio.signal_level"), d ? formatLevel(d) : renderPill(t("common.loading"), "neutral")],
   ];
 }
 
@@ -1618,15 +1596,6 @@ function AudioCard() {
             />
           `}
         />
-      </div>
-
-      <div class="page-grid" style="margin-top: 1.6rem;">
-        <div class="summary-tile">
-          <span class="summary-label">${t("audio.signal_level")}</span>
-          <div class="summary-value" style="font-size: 1.6rem;">
-            ${formatLevel(d)}
-          </div>
-        </div>
       </div>
     </section>
   `;
