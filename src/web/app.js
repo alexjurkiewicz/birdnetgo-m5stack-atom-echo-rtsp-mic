@@ -1,985 +1,1616 @@
-      const T = {
-        en: {
-          title: "ESP32 RTSP Mic for BirdNET-Go",
-          status: "Status",
-          ip: "IP Address",
-          wifi_rssi: "WiFi RSSI",
-          wifi_tx: "WiFi TX Power",
-          heap: "Free Heap (min)",
-          uptime: "Uptime",
-          rtsp_server: "RTSP Server",
-          client: "Client",
-          streaming: "Streaming",
-          pkt_rate: "Packet Rate",
-          last_connect: "Last RTSP Connect",
-          last_play: "Last Stream Start",
-          audio: "Audio",
-          rate: "Sample Rate",
-          gain: "Gain",
-          buf: "Buffer Size",
-          latency: "Latency",
-          profile: "Profile",
-          perf: "Reliability",
-          auto: "Auto Recovery",
-          wifi: "WiFi",
-          wifi_tx2: "TX Power (dBm)",
-          thermal: "Thermal",
-          logs: "Logs",
-          bsrvon: "Server ON",
-          bsrvoff: "Server OFF",
-          breset: "Reset I2S",
-          breboot: "Reboot",
-          bdefaults: "Defaults",
-          confirm_reboot: "Restart device now?",
-          confirm_reset: "Reset to defaults and reboot?",
-          restarting: "Restarting device…",
-          resetting: "Restoring defaults and rebooting…",
-          advanced_settings: "Advanced Settings",
-          shift: "I2S Shift",
-          thr: "Restart Threshold",
-          chk: "Check Interval",
-          thr_mode: "Threshold Mode",
-          auto_m: "Auto",
-          manual_m: "Manual",
-          sched: "Scheduled Reset",
-          hours: "Reset After",
-          cpu: "CPU Frequency",
-          set: "Set",
-          profile_ultra: "Ultra-Low Latency (Higher CPU, May have dropouts)",
-          profile_balanced: "Balanced (Moderate CPU, Good stability)",
-          profile_stable: "Stable Streaming (Lower CPU, Excellent stability)",
-          profile_high: "High Stability (Lowest CPU, Maximum stability)",
-          help_rate: "Higher sample-rate = more detail, more bandwidth.",
-          help_gain: "Amplifies audio after I²S shift; too high clips.",
-          help_buf: "More samples per packet = higher latency, more stability.",
-          help_auto: "Auto-restarts the pipeline when packet-rate collapses.",
-          help_tx: "Wi-Fi TX power; lowering can reduce RF noise.",
-          help_shift: "Digital right shift applied before scaling.",
-          help_thr: "Minimum packet-rate before auto-recovery triggers.",
-          help_chk: "How often performance is checked.",
-          help_sched: "Periodic device restart for stability.",
-          help_hours: "Interval between scheduled restarts.",
-          help_cpu: "Lower MHz = cooler, higher latency possible.",
-          therm_protect: "Overheat Protection",
-          therm_limit: "Shutdown Limit",
-          therm_status: "Status",
-          therm_now: "Current Temp",
-          therm_max: "Peak Temp",
-          therm_cpu: "CPU Clock",
-          therm_last: "Last Shutdown",
-          therm_status_ready: "Protection ready",
-          therm_status_disabled: "Protection disabled",
-          therm_status_latched: "Cooling required - restart manually",
-          therm_status_sensor_fault: "Sensor unavailable - protection paused",
-          therm_status_latched_persist:
-            "Protection latched — acknowledge to re-enable",
-          therm_hint:
-            "80 °C suits most ESP32 boards; drop to 70-75 °C for sealed enclosures.",
-          therm_last_none: "No shutdown recorded yet.",
-          therm_last_fmt:
-            "Stopped at %TEMP% °C (limit %LIMIT% °C) after %TIME% uptime (%AGO%).",
-          therm_last_sensor_fault:
-            "Thermal protection disabled: temperature sensor unavailable.",
-          therm_latch_notice:
-            "Thermal shutdown latched the RTSP server. Confirm only after hardware cools down.",
-          therm_clear_btn: "Acknowledge & re-enable RTSP",
-          therm_time_unknown: "unknown time",
-          therm_time_ago_unknown: "just now",
-          help_therm_protect:
-            "Automatically stops streaming when the ESP32 exceeds the limit to protect the board and microphone preamp.",
-          help_therm_limit:
-            "Temperature threshold for thermal shutdown. 80 °C is a safe default; use 70-75 °C if airflow is poor.",
-        },
-        cs: {
-          title: "ESP32 RTSP Mic pro BirdNET-Go",
-          status: "Stav",
-          ip: "IP adresa",
-          wifi_rssi: "WiFi RSSI",
-          wifi_tx: "WiFi výkon",
-          heap: "Volná RAM (min)",
-          uptime: "Doba běhu",
-          rtsp_server: "RTSP server",
-          client: "Klient",
-          streaming: "Streamování",
-          pkt_rate: "Rychlost paketů",
-          last_connect: "Poslední RTSP připojení",
-          last_play: "Poslední start streamu",
-          audio: "Audio",
-          rate: "Vzorkovací frekvence",
-          gain: "Zisk",
-          buf: "Velikost bufferu",
-          latency: "Latence",
-          profile: "Profil",
-          perf: "Spolehlivost",
-          auto: "Automatická obnova",
-          wifi: "WiFi",
-          wifi_tx2: "TX výkon (dBm)",
-          thermal: "Teplota",
-          logs: "Logy",
-          bsrvon: "Server ZAP",
-          bsrvoff: "Server VYP",
-          breset: "Reset I2S",
-          breboot: "Restart",
-          bdefaults: "Výchozí",
-          confirm_reboot: "Restartovat zařízení nyní?",
-          confirm_reset: "Obnovit výchozí nastavení a restartovat?",
-          restarting: "Zařízení se restartuje…",
-          resetting: "Obnovuji výchozí nastavení a restartuji…",
-          advanced_settings: "Pokročilá nastavení",
-          shift: "I2S posun",
-          thr: "Prahová hodnota restartu",
-          chk: "Interval kontroly",
-          thr_mode: "Režim prahu",
-          auto_m: "Automaticky",
-          manual_m: "Manuálně",
-          sched: "Plánovaný restart",
-          hours: "Po kolika hodinách",
-          cpu: "Frekvence CPU",
-          set: "Nastavit",
-          profile_ultra: "Ultra nízká latence (vyšší zátěž CPU, možné výpadky)",
-          profile_balanced: "Vyvážené (střední zátěž CPU, dobrá stabilita)",
-          profile_stable:
-            "Stabilní stream (nižší zátěž CPU, výborná stabilita)",
-          profile_high: "Vysoká stabilita (nejnižší zátěž CPU, max. stabilita)",
-          help_rate: "Vyšší frekvence = více detailů, větší datový tok.",
-          help_gain: "Zesílení po I²S posunu; příliš vysoké klipuje.",
-          help_buf: "Více vzorků v paketu = vyšší latence, větší stabilita.",
-          help_auto: "Při poklesu rychlosti paketů dojde k obnově.",
-          help_tx: "Výkon vysílače Wi-Fi; snížení může zlepšit šum.",
-          help_shift: "Digitální bitový posun před škálováním.",
-          help_thr: "Minimální rychlost paketů pro spuštění obnovy.",
-          help_chk: "Jak často se provádí kontrola výkonu.",
-          help_sched: "Pravidelný restart zařízení kvůli stabilitě.",
-          help_hours: "Interval mezi plánovanými restarty.",
-          help_cpu: "Nižší MHz = chladnější, může přidat latenci.",
-          therm_protect: "Ochrana proti přehřátí",
-          therm_limit: "Vypínací teplota",
-          therm_status: "Stav",
-          therm_now: "Aktuální teplota",
-          therm_max: "Maximální teplota",
-          therm_cpu: "Takt CPU",
-          therm_last: "Poslední zásah",
-          therm_status_ready: "Ochrana připravena",
-          therm_status_disabled: "Ochrana vypnuta",
-          therm_status_latched: "Přehřátí - nejprve vychlaďte a spusťte ručně",
-          therm_status_sensor_fault:
-            "Senzor teploty nedostupný - ochrana pozastavena",
-          therm_status_latched_persist:
-            "Ochrana zůstává blokovaná - potvrďte znovuspuštění",
-          therm_hint:
-            "80 °C je bezpečné pro většinu ESP32; v uzavřených krabičkách volte 70-75 °C.",
-          therm_last_none: "Zatím žádné přehřátí.",
-          therm_last_fmt:
-            "Stream vypnut při %TEMP% °C (limit %LIMIT% °C) po %TIME% běhu (%AGO%).",
-          therm_last_sensor_fault:
-            "Tepelná ochrana vypnuta: teplota není k dispozici.",
-          therm_latch_notice:
-            "Tepelná ochrana odstavila RTSP server. Zapínejte až po vychladnutí.",
-          therm_clear_btn: "Potvrdit a znovu povolit RTSP",
-          therm_time_unknown: "neznámý čas",
-          therm_time_ago_unknown: "právě teď",
-          help_therm_protect:
-            "Při překročení limitu zastaví stream, aby chránila desku a předzesilovač.",
-          help_therm_limit:
-            "Teplota, při které se stream vypne. 80 °C vyhoví odkrytým deskám; v teplém prostředí nastavte 70-75 °C.",
-        },
-      };
-      const HELP_EXT_EN = {
-        dcb: "DC Blocker",
-        help_dcb:
-          "Single-pole IIR filter (pole R=0.9999) that removes any DC offset from the PDM microphone. Cutoff is ~0.25 Hz — well below all audio. Disable only to test whether it contributes to the clicking artifact; leave ON in normal use.",
-        led: "LED Mode",
-        help_led:
-          "Off: LED stays dark during streaming. Static: Solid color (blue=ready, green=streaming). Level: Color changes with audio level — green=good, orange=hot, red=clipping, dim purple=quiet.",
-        agc: "AGC (Auto Gain)",
-        help_agc:
-          "Automatic Gain Control adjusts volume automatically. Fast attack prevents clipping on loud sounds; slow release gradually boosts quiet periods. Great for outdoor bird recording where distance varies. Base Gain still applies — AGC adjusts on top of it.",
-        hpf: "High-pass",
-        hpf_cut: "HPF Cutoff",
-        help_hpf:
-          "High-pass filter (2nd-order, ~12 dB/oct) removes low-frequency rumble such as distant traffic, wind or handling noise. Turn ON to attenuate frequencies below the cutoff while keeping most bird vocalizations intact.",
-        help_hpf_cut:
-          "Cutoff frequency for the high-pass filter. Default 80 Hz removes only DC and infrasound — BirdNET-Go's low-frequency spectrogram covers 0-3 kHz and the model was trained on unfiltered audio, so a higher cutoff (e.g. 300 Hz) removes useful signal for owls, bitterns, and other low-calling species. Raise to 300-600 Hz only to combat strong wind or traffic noise.",
-        help_rate:
-          "How many audio samples per second are captured. 48 kHz is the recommended default and hardware maximum — the SPM1423 PDM clock tops out at 3.25 MHz with 64× oversampling (48 kHz × 64 = 3.072 MHz). BirdNET-Go natively processes up to 15 kHz, so 48 kHz gives full coverage with no upsampling artefacts.",
-        help_gain:
-          "Software amplification after the I2S shift. Use to boost loudness. Too high causes clipping (distortion). With default shift, 1.0× is neutral. Adjust while watching the stream.",
-        help_buf:
-          "Samples per network packet. Bigger buffer increases latency but improves stability on weak Wi-Fi; smaller buffer lowers latency but may drop packets. Default 9600 gives ~200 ms at 48 kHz. A larger buffer may also help reduce periodic high-frequency clicking from the PDM microphone.",
-        help_auto:
-          "When enabled, the device restarts the audio pipeline if packet rate drops below the threshold. Helps recover from glitches without manual intervention.",
-        help_tx:
-          "Wi-Fi transmit power in dBm. Lower values can reduce RF self-noise near the microphone and power draw, but reduce range. Only specific steps are supported by the radio. Change carefully if your signal is weak.",
-        help_shift:
-          "Right bit-shift applied to 32-bit I2S samples before converting to 16-bit. Higher shift lowers volume and avoids clipping; lower shift raises volume but may clip.",
-        help_thr:
-          "Minimum packet rate (packets per second) considered healthy while streaming. If measured rate stays below this at a check, auto recovery restarts I2S. In Auto mode this comes from sample rate and buffer size (about 70% of expected).",
-        help_chk:
-          "How often performance is checked (minutes). Shorter intervals react faster with small CPU cost; longer intervals reduce checks.",
-        help_sched:
-          "Optional periodic device reboot for long-term stability on problematic networks. Leave OFF unless you need it.",
-        help_hours:
-          "Number of hours between scheduled reboots. Applies only when Scheduled Reset is ON.",
-        help_cpu:
-          "Processor clock. Lower MHz reduces heat and power; higher MHz can help under heavy load. 120 MHz is a balanced default.",
-        help_thr_mode:
-          "Auto: Threshold is computed from Sample Rate and Buffer; recommended for most users. Manual: You set the exact minimum packet rate; use if you know your network and latency constraints.",
-        level: "Signal Level",
-        help_level:
-          "Shows the highest peak since last update. Aim for 60-80% (about -4 to -2 dBFS). If it says CLIPPING, increase I2S Shift or reduce Gain. Turning ON the High-pass (500-600 Hz) often helps.",
-        clip_ok: "OK",
-        clip_warn:
-          "High level — close to clipping (reduce Gain or increase I2S Shift).",
-        clip_bad:
-          "CLIPPING! Increase I2S Shift or reduce Gain; try High-pass 500-600 Hz.",
-      };
-      const HELP_EXT_CS = {
-        dcb: "DC blocker",
-        help_dcb:
-          "Jednopólový IIR filtr (pól R=0,9999) odstraňující DC složku PDM mikrofonu. Mezní frekvence ~0,25 Hz — hluboko pod veškerým zvukem. Vypínejte pouze pro test, zda přispívá k artefaktu klikání; při normálním provozu nechte ZAP.",
-        led: "Režim LED",
-        help_led:
-          "Vyp: LED je zhasnutá. Statická: Pevná barva (modrá=připraveno, zelená=streamuje). Úroveň: Barva se mění podle hlasitosti — zelená=ok, oranžová=vysoko, červená=přebuzení, tmavě fialová=ticho.",
-        agc: "AGC (Auto zisk)",
-        help_agc:
-          "Automatické řízení zisku přizpůsobuje hlasitost. Rychlý útlum zabrání přebuzení u hlasitých zvuků; pomalé uvolnění postupně zesiluje tiché úseky. Ideální pro venkovní nahrávání ptáků, kde se vzdálenost mění. Základní zisk se stále uplatňuje — AGC upravuje nad ním.",
-        hpf: "Vysokopropustný filtr",
-        hpf_cut: "Mezní frekvence HPF",
-        help_hpf:
-          "Vysokopropustný filtr (2. řád, ~12 dB/okt.) potlačí nízké frekvence jako vzdálená silnice, vítr nebo manipulační hluk. Zapněte pro zeslabení pásem pod mezní frekvencí a zachování většiny ptačích hlasů.",
-        help_hpf_cut:
-          "Mezní frekvence vysokopropustného filtru. Výchozích 80 Hz odstraní pouze DC složku a infrazvuk — BirdNET-Go zpracovává spektrum od 0 do 3 kHz a model byl trénován na nefiltrovaných nahrávkách. Vyšší hodnota (např. 300 Hz) odstraňuje signál důležitý pro sovy, chřástaly a jiné nízko volající druhy. Zvyšujte pouze při silném větru nebo dopravním hluku.",
-        help_rate:
-          "Kolik vzorků za sekundu se pořizuje. 48 kHz je doporučené výchozí nastavení a hardwarové maximum — takt PDM mikrofonu SPM1423 dosahuje max. 3,25 MHz při 64× převzorkování (48 kHz × 64 = 3,072 MHz). BirdNET-Go nativně zpracovává až 15 kHz, takže 48 kHz poskytuje plné pokrytí bez artefaktů převzorkování.",
-        help_gain:
-          "Softwarové zesílení po I2S posunu. 1,0× je neutrální s výchozím posunem. Příliš vysoká hodnota způsobí ořez (zkreslení). Upravujte podle poslechu a spektra.",
-        help_buf:
-          "Počet vzorků v jednom síťovém paketu. Větší buffer zvyšuje latenci a zlepšuje stabilitu na slabším Wi-Fi; menší buffer snižuje latenci, ale může zvyšovat ztráty paketů. Výchozí hodnota 9600 odpovídá ~200 ms při 48 kHz. Větší buffer může také pomoci omezit periodické vysokofrekvenční klikání z PDM mikrofonu.",
-        help_auto:
-          "Při poklesu rychlosti odchozích paketů pod práh zařízení automaticky restartuje audio pipeline. Pomáhá zotavit se z výpadků bez zásahu.",
-        help_tx:
-          "Vysílací výkon Wi-Fi v dBm. Snížení může omezit vlastní RF šum u mikrofonu a spotřebu, ale zmenší dosah. Čip podporuje jen určité kroky. Pokud máte slabý signál, měňte opatrně.",
-        help_shift:
-          "Pravý bitový posun na 32bitových I2S vzorcích před převodem na 16bit audio. Vyšší posun snižuje hlasitost a brání klipování; nižší posun zvyšuje hlasitost, ale může klipovat.",
-        help_thr:
-          "Minimální rychlost paketů (paketů za sekundu), považovaná při streamování za zdravou. Pokud při kontrole klesne pod tuto hodnotu, automatická obnova restartuje I2S. V režimu Auto se práh odvozuje z frekvence a bufferu (asi 70 % očekávané hodnoty).",
-        help_chk:
-          "Jak často se kontroluje výkon (minuty). Kratší interval reaguje rychleji s malou zátěží CPU; delší interval snižuje počet kontrol.",
-        help_sched:
-          "Volitelný pravidelný restart zařízení pro dlouhodobou stabilitu na problematických sítích. Nechte VYP, pokud není nutné.",
-        help_hours:
-          "Počet hodin mezi plánovanými restarty. Platí pouze pokud je Plánovaný restart ZAP.",
-        help_cpu:
-          "Frekvence procesoru. Nižší MHz snižuje zahřívání a spotřebu; vyšší MHz pomůže při zátěži. 120 MHz je vyvážené výchozí nastavení.",
-        help_thr_mode:
-          "Auto: Práh restartu se počítá z Vzorkovací frekvence a Bufferu; doporučeno pro většinu uživatelů. Manuálně: Nastavíte přesný minimální počet paketů za sekundu; použijte, pokud znáte svou síť a požadavky na latenci.",
-        level: "Úroveň signálu",
-        help_level:
-          "Zobrazuje nejvyšší špičku od poslední obnovy. Cíl je 60-80 % (asi -4 až -2 dBFS). Při CLIPPING zvyšte I2S posun nebo snižte Gain. Často pomůže zapnout High-pass (500-600 Hz).",
-        clip_ok: "OK",
-        clip_warn:
-          "Vysoká úroveň — blízko klipu (snižte Gain nebo zvyšte I2S posun).",
-        clip_bad:
-          "CLIPPING! Zvyšte I2S posun nebo snižte Gain; zkuste High-pass 500-600 Hz.",
-      };
-      Object.assign(T.en, HELP_EXT_EN);
-      Object.assign(T.cs, HELP_EXT_CS);
-      let lang = localStorage.getItem("lang") || "en";
-      const $ = (id) => document.getElementById(id);
-      function applyLang() {
-        const L = T[lang];
-        const st = (id, t) => {
-          const e = $(id);
-          if (e) e.textContent = t;
-        };
-        const help = (k) => {
-          const b = L[k] || "";
-          return b;
-        };
-        st("t_title", L.title);
-        st("t_status", L.status);
-        st("t_ip", L.ip);
-        st("t_wifi_rssi", L.wifi_rssi);
-        st("t_wifi_tx", L.wifi_tx);
-        st("t_heap", L.heap);
-        st("t_uptime", L.uptime);
-        st("t_rtsp_server", L.rtsp_server);
-        st("t_client", L.client);
-        st("t_streaming", L.streaming);
-        st("t_pkt_rate", L.pkt_rate);
-        st("t_last_connect", L.last_connect);
-        st("t_last_play", L.last_play);
-        st("t_audio", L.audio);
-        st("t_rate", L.rate);
-        st("t_gain", L.gain);
-        st("t_buf", L.buf);
-        st("t_latency", L.latency);
-        st("t_level", L.level);
-        st("t_profile", L.profile);
-        st("t_perf", L.perf);
-        st("t_auto", L.auto);
-        st("t_wifi", L.wifi);
-        st("t_wifi_tx2", L.wifi_tx2);
-        st("t_thermal", L.thermal);
-        st("t_therm_protect", L.therm_protect);
-        st("t_therm_limit", L.therm_limit);
-        st("t_therm_status", L.therm_status);
-        st("t_therm_now", L.therm_now);
-        st("t_therm_max", L.therm_max);
-        st("t_therm_cpu", L.therm_cpu);
-        st("t_therm_last", L.therm_last);
-        st("t_logs", L.logs);
-        st("b_srv_on", L.bsrvon);
-        st("b_srv_off", L.bsrvoff);
-        st("b_reset", L.breset);
-        st("b_reboot", L.breboot);
-        st("b_defaults", L.bdefaults);
-        st("t_advanced_settings", L.advanced_settings);
-        st("t_shift", L.shift);
-        st("t_thr", L.thr);
-        st("t_chk", L.chk);
-        st("t_thr_mode", L.thr_mode);
-        st("t_sched", L.sched);
-        st("t_hours", L.hours);
-        st("t_cpu", L.cpu);
-        const hm = (id, k) => {
-          const e = $(id);
-          if (e) e.setAttribute("title", help(k));
-        };
-        hm("h_rate", "help_rate");
-        hm("h_gain", "help_gain");
-        hm("h_hpf", "help_hpf");
-        hm("h_hpf_cut", "help_hpf_cut");
-        hm("h_buf", "help_buf");
-        hm("h_auto", "help_auto");
-        hm("h_tx", "help_tx");
-        hm("h_thr", "help_thr");
-        hm("h_chk", "help_chk");
-        hm("h_shift", "help_shift");
-        hm("h_sched", "help_sched");
-        hm("h_hours", "help_hours");
-        hm("h_cpu", "help_cpu");
-        hm("h_thr_mode", "help_thr_mode");
-        hm("h_level", "help_level");
-        hm("h_therm_protect", "help_therm_protect");
-        hm("h_therm_limit", "help_therm_limit");
-        st("btn_rate_set", L.set);
-        st("btn_gain_set", L.set);
-        st("btn_buf_set", L.set);
-        st("btn_auto_set", L.set);
-        st("btn_thrmode_set", L.set);
-        st("btn_thr_set", L.set);
-        st("btn_sched_set", L.set);
-        st("btn_hours_set", L.set);
-        st("btn_shift_set", L.set);
-        st("btn_chk_set", L.set);
-        st("btn_tx_set", L.set);
-        st("btn_cpu_set", L.set);
-        st("btn_oh_enable", L.set);
-        st("btn_oh_limit", L.set);
-        const sht = (id, k) => {
-          const e = $(id);
-          if (e) e.textContent = help(k);
-        };
-        sht("txt_rate_hint", "help_rate");
-        sht("txt_gain_hint", "help_gain");
-        sht("txt_hpf_hint", "help_hpf");
-        sht("txt_hpf_cut_hint", "help_hpf_cut");
-        sht("txt_buf_hint", "help_buf");
-        sht("txt_auto_hint", "help_auto");
-        sht("txt_thr_hint", "help_thr");
-        sht("txt_thr_mode_hint", "help_thr_mode");
-        sht("txt_sched_hint", "help_sched");
-        sht("txt_hours_hint", "help_hours");
-        sht("txt_shift_hint", "help_shift");
-        sht("txt_chk_hint", "help_chk");
-        sht("txt_tx_hint", "help_tx");
-        sht("txt_cpu_hint", "help_cpu");
-        sht("txt_level_hint", "help_level");
-        sht("txt_therm_hint_protect", "help_therm_protect");
-        sht("txt_therm_hint_limit", "help_therm_limit");
-        st("t_dcb", L.dcb);
-        hm("h_dcb", "help_dcb");
-        sht("txt_dcb_hint", "help_dcb");
-        st("t_hpf", L.hpf);
-        st("t_hpf_cut", L.hpf_cut);
-        st("t_agc", L.agc);
-        hm("h_agc", "help_agc");
-        st("btn_agc_set", L.set);
-        sht("txt_agc_hint", "help_agc");
-        st("t_led", L.led);
-        hm("h_led", "help_led");
-        st("btn_led_set", L.set);
-        sht("txt_led_hint", "help_led");
-        document.title = L.title;
-      }
-      function profileText(buf) {
-        const L = T[lang];
-        buf = parseInt(buf, 10) || 0;
-        if (buf <= 256) return L.profile_ultra;
-        if (buf <= 512) return L.profile_balanced;
-        if (buf <= 1024) return L.profile_stable;
-        return L.profile_high;
-      }
-      function fmtBool(b) {
-        return b ? "<span class=ok>YES</span>" : "<span class=bad>NO</span>";
-      }
-      function fmtSrv(b) {
-        return b
-          ? "<span class=ok>ENABLED</span>"
-          : "<span class=bad>DISABLED</span>";
-      }
-      function showOverlay(msg) {
-        $("ovr_msg").textContent = msg;
-        $("ovr").style.display = "flex";
-      }
-      function copyLogs() {
-        const t = $("logs").textContent;
-        const b = $("btn_copy_logs");
-        const orig = b.innerHTML;
-        const ta = document.createElement("textarea");
-        ta.value = t;
-        ta.style.position = "fixed";
-        ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        ta.select();
-        try {
-          document.execCommand("copy");
-          b.innerHTML =
-            '<svg width=16 height=16 viewBox="0 0 16 16" fill="none" stroke="var(--acc2)" stroke-width="1.5"><path d="M3 9l3 3 7-7"/></svg>';
-          setTimeout(() => {
-            b.innerHTML = orig;
-          }, 1500);
-        } catch (e) {}
-        document.body.removeChild(ta);
-      }
-      function rebootSequence(kind) {
-        const L = T[lang];
-        const msg = kind === "factory_reset" ? L.resetting : L.restarting;
-        showOverlay(msg);
-        function tick() {
-          fetch("/api/status", { cache: "no-store" })
-            .then((r) => {
-              if (r.ok) {
-                location.reload();
-              } else {
-                setTimeout(tick, 2000);
-              }
-            })
-            .catch(() => setTimeout(tick, 2000));
-        }
-        setTimeout(tick, 4000);
-      }
-      function act(a) {
-        fetch("/api/action/" + a, { cache: "no-store" })
-          .then((r) => r.json())
-          .then(loadAll);
-      }
-      function rebootNow() {
-        rebootSequence("reboot");
-        act("reboot");
-      }
-      function defaultsNow() {
-        rebootSequence("factory_reset");
-        act("factory_reset");
-      }
-      function reconfigWifiNow() {
-        if (
-          !confirm(
-            "This will erase stored WiFi credentials and reboot into setup portal.\nConnect to 'ESP32-RTSP-Mic-AP' after reboot.",
+import { html, render } from "https://esm.sh/htm/preact/standalone";
+
+const I18N_CONFIG = {
+  default_language: "en",
+  languages: ["en", "cs"],
+  translations: {
+    "app.title": {
+      en: "ESP32 RTSP Mic for BirdNET-Go",
+      cs: "ESP32 RTSP Mic pro BirdNET-Go",
+    },
+    "app.subtitle": {
+      en: "Embedded control surface for the M5Stack Atom Echo RTSP microphone.",
+      cs: "Vestavěné rozhraní pro RTSP mikrofon M5Stack Atom Echo.",
+    },
+    "app.repository": { en: "GitHub", cs: "GitHub" },
+    "app.language": { en: "Language", cs: "Jazyk" },
+    "app.rtsp_url": { en: "RTSP URL", cs: "RTSP URL" },
+    "app.summary.server": { en: "Server", cs: "Server" },
+    "app.summary.streaming": { en: "Streaming", cs: "Streamování" },
+    "app.summary.packet_rate": { en: "Packet Rate", cs: "Rychlost paketů" },
+    "app.summary.temperature": { en: "Temperature", cs: "Teplota" },
+    "common.loading": { en: "Loading…", cs: "Načítání…" },
+    "common.na": { en: "N/A", cs: "N/A" },
+    "common.waiting": { en: "Waiting…", cs: "Čekám…" },
+    "common.unknown": { en: "Unknown", cs: "Neznámé" },
+    "common.set": { en: "Set", cs: "Nastavit" },
+    "common.set_reboot": { en: "Set & Reboot", cs: "Nastavit a restartovat" },
+    "common.copy_logs": { en: "Copy Logs", cs: "Kopírovat logy" },
+    "common.copied": { en: "Copied", cs: "Zkopírováno" },
+    "common.on": { en: "ON", cs: "ZAP" },
+    "common.off": { en: "OFF", cs: "VYP" },
+    "common.auto": { en: "Auto", cs: "Automaticky" },
+    "common.manual": { en: "Manual", cs: "Manuálně" },
+    "common.enabled": { en: "Enabled", cs: "Povoleno" },
+    "common.disabled": { en: "Disabled", cs: "Zakázáno" },
+    "common.yes": { en: "Yes", cs: "Ano" },
+    "common.no": { en: "No", cs: "Ne" },
+    "common.active": { en: "Active", cs: "Aktivní" },
+    "common.inactive": { en: "Inactive", cs: "Neaktivní" },
+    "common.refresh_error": {
+      en: "Some data could not be refreshed. The last known values are still shown.",
+      cs: "Část dat se nepodařilo obnovit. Zobrazuji poslední známé hodnoty.",
+    },
+    "common.save_error": {
+      en: "Setting update failed.",
+      cs: "Uložení nastavení se nezdařilo.",
+    },
+    "common.action_error": {
+      en: "Action request failed.",
+      cs: "Požadovaná akce selhala.",
+    },
+    "common.connection_error": {
+      en: "Device is not responding right now.",
+      cs: "Zařízení právě neodpovídá.",
+    },
+    "action.server_start": { en: "Server ON", cs: "Server ZAP" },
+    "action.server_stop": { en: "Server OFF", cs: "Server VYP" },
+    "action.reset_i2s": { en: "Reset I2S", cs: "Reset I2S" },
+    "action.reboot": { en: "Reboot", cs: "Restart" },
+    "action.defaults": { en: "Defaults", cs: "Výchozí" },
+    "action.wifi_setup": { en: "WiFi Setup", cs: "Nastavení WiFi" },
+    "action.confirm_reboot": {
+      en: "Restart device now?",
+      cs: "Restartovat zařízení nyní?",
+    },
+    "action.confirm_defaults": {
+      en: "Reset settings to defaults and reboot?",
+      cs: "Obnovit výchozí nastavení a restartovat?",
+    },
+    "action.confirm_wifi": {
+      en: "Erase stored WiFi credentials and reboot into the setup portal?",
+      cs: "Smazat uložené WiFi údaje a restartovat do konfiguračního portálu?",
+    },
+    "overlay.restarting": {
+      en: "Restarting device…",
+      cs: "Zařízení se restartuje…",
+    },
+    "overlay.resetting": {
+      en: "Restoring defaults and rebooting…",
+      cs: "Obnovuji výchozí nastavení a restartuji…",
+    },
+    "overlay.wifi": {
+      en: "Rebooting into WiFi setup. Connect to ESP32-RTSP-Mic-AP after the restart.",
+      cs: "Zařízení se restartuje do WiFi nastavení. Po restartu se připojte k ESP32-RTSP-Mic-AP.",
+    },
+    "section.status": { en: "Status", cs: "Stav" },
+    "section.audio": { en: "Audio", cs: "Audio" },
+    "section.reliability": { en: "Reliability", cs: "Spolehlivost" },
+    "section.thermal": { en: "Thermal", cs: "Teplota" },
+    "section.advanced": { en: "Advanced", cs: "Pokročilé" },
+    "section.logs": { en: "Logs", cs: "Logy" },
+    "status.ip": { en: "IP Address", cs: "IP adresa" },
+    "status.wifi_rssi": { en: "WiFi RSSI", cs: "WiFi RSSI" },
+    "status.wifi_tx": { en: "WiFi TX Power", cs: "WiFi výkon" },
+    "status.heap": { en: "Free Heap (min)", cs: "Volná RAM (min)" },
+    "status.uptime": { en: "Uptime", cs: "Doba běhu" },
+    "status.rtsp_server": { en: "RTSP Server", cs: "RTSP server" },
+    "status.client": { en: "Client", cs: "Klient" },
+    "status.streaming": { en: "Streaming", cs: "Streamování" },
+    "status.packet_rate": { en: "Packet Rate", cs: "Rychlost paketů" },
+    "status.last_connect": {
+      en: "Last RTSP Connect",
+      cs: "Poslední RTSP připojení",
+    },
+    "status.last_play": {
+      en: "Last Stream Start",
+      cs: "Poslední start streamu",
+    },
+    "status.server_enabled": { en: "Enabled", cs: "Povolen" },
+    "status.server_disabled": { en: "Disabled", cs: "Zakázán" },
+    "status.streaming_yes": { en: "Yes", cs: "Ano" },
+    "status.streaming_no": { en: "No", cs: "Ne" },
+    "audio.sample_rate": { en: "Sample Rate", cs: "Vzorkovací frekvence" },
+    "audio.gain": { en: "Gain", cs: "Zisk" },
+    "audio.dc_blocker": { en: "DC Blocker", cs: "DC blocker" },
+    "audio.highpass": { en: "High-pass", cs: "Vysokopropustný filtr" },
+    "audio.highpass_cutoff": {
+      en: "HPF Cutoff",
+      cs: "Mezní frekvence HPF",
+    },
+    "audio.agc": { en: "AGC", cs: "AGC" },
+    "audio.led_mode": { en: "LED Mode", cs: "Režim LED" },
+    "audio.buffer_size": { en: "Buffer Size", cs: "Velikost bufferu" },
+    "audio.latency": { en: "Latency", cs: "Latence" },
+    "audio.signal_level": { en: "Signal Level", cs: "Úroveň signálu" },
+    "audio.profile": { en: "Profile", cs: "Profil" },
+    "audio.led_off": { en: "Off", cs: "Vyp" },
+    "audio.led_static": { en: "Static", cs: "Statická" },
+    "audio.led_level": { en: "Level", cs: "Úroveň" },
+    "audio.profile_ultra": {
+      en: "Ultra-Low Latency",
+      cs: "Ultra nízká latence",
+    },
+    "audio.profile_balanced": {
+      en: "Balanced",
+      cs: "Vyvážené",
+    },
+    "audio.profile_stable": {
+      en: "Stable Streaming",
+      cs: "Stabilní stream",
+    },
+    "audio.profile_high": {
+      en: "High Stability",
+      cs: "Vysoká stabilita",
+    },
+    "audio.agc_info": {
+      en: "Multiplier {multiplier}×, effective gain {effective}×",
+      cs: "Násobič {multiplier}×, efektivní zisk {effective}×",
+    },
+    "audio.level_ok": { en: "OK", cs: "V pořádku" },
+    "audio.level_warn": {
+      en: "High level, close to clipping",
+      cs: "Vysoká úroveň, blízko přebuzení",
+    },
+    "audio.level_bad": {
+      en: "Clipping detected",
+      cs: "Detekováno přebuzení",
+    },
+    "audio.level_value": {
+      en: "Peak {pct}% ({db} dBFS)",
+      cs: "Špička {pct}% ({db} dBFS)",
+    },
+    "audio.level_value_clips": {
+      en: "Peak {pct}% ({db} dBFS), clips: {clips}",
+      cs: "Špička {pct}% ({db} dBFS), přebuzení: {clips}",
+    },
+    "audio.help.sample_rate": {
+      en: "48 kHz is the recommended default and hardware maximum for the onboard PDM microphone.",
+      cs: "48 kHz je doporučené výchozí nastavení a hardwarové maximum pro vestavěný PDM mikrofon.",
+    },
+    "audio.help.gain": {
+      en: "Software amplification after the I2S shift. Too much gain causes clipping.",
+      cs: "Softwarové zesílení po I2S posunu. Příliš vysoká hodnota způsobí přebuzení.",
+    },
+    "audio.help.dc_blocker": {
+      en: "Single-pole filter that removes DC offset from the microphone. Leave it on unless you are debugging audio artifacts.",
+      cs: "Jednopólový filtr, který odstraňuje DC složku mikrofonu. Vypínejte jen při ladění artefaktů.",
+    },
+    "audio.help.highpass": {
+      en: "Removes low-frequency rumble such as wind, traffic and handling noise.",
+      cs: "Potlačuje nízkofrekvenční hluk jako vítr, dopravu nebo manipulační ruch.",
+    },
+    "audio.help.highpass_cutoff": {
+      en: "80 Hz is conservative. Raise only when low-frequency noise is overwhelming the useful signal.",
+      cs: "80 Hz je konzervativní hodnota. Zvyšujte ji jen při silném nízkofrekvenčním hluku.",
+    },
+    "audio.help.agc": {
+      en: "Automatic Gain Control adapts loudness. It is useful when bird distance changes over time.",
+      cs: "Automatické řízení zisku upravuje hlasitost. Hodí se, když se vzdálenost ptáků mění.",
+    },
+    "audio.help.led_mode": {
+      en: "Off keeps the LED dark, Static shows state, Level tracks the audio level.",
+      cs: "Vyp zhasne LED, Statická ukazuje stav, Úroveň sleduje hlasitost signálu.",
+    },
+    "audio.help.buffer_size": {
+      en: "Larger packets increase latency but improve stability on weak WiFi links.",
+      cs: "Větší pakety zvyšují latenci, ale zlepšují stabilitu na slabší WiFi síti.",
+    },
+    "reliability.auto_recovery": {
+      en: "Auto Recovery",
+      cs: "Automatická obnova",
+    },
+    "reliability.threshold_mode": {
+      en: "Threshold Mode",
+      cs: "Režim prahu",
+    },
+    "reliability.restart_threshold": {
+      en: "Restart Threshold",
+      cs: "Prahová hodnota restartu",
+    },
+    "reliability.scheduled_reset": {
+      en: "Scheduled Reset",
+      cs: "Plánovaný restart",
+    },
+    "reliability.reset_hours": {
+      en: "Reset After",
+      cs: "Po kolika hodinách",
+    },
+    "reliability.help.auto_recovery": {
+      en: "Restarts the audio pipeline when packet rate collapses.",
+      cs: "Restartuje audio pipeline při kolapsu rychlosti paketů.",
+    },
+    "reliability.help.threshold_mode": {
+      en: "Auto computes the threshold from sample rate and buffer size. Manual exposes the exact packet-rate floor.",
+      cs: "Auto počítá práh ze vzorkovací frekvence a bufferu. Manuální režim vystaví přesnou mez paketové rychlosti.",
+    },
+    "reliability.help.restart_threshold": {
+      en: "Used only in manual mode. Valid range is 5 to 200 packets per second.",
+      cs: "Používá se jen v manuálním režimu. Platný rozsah je 5 až 200 paketů za sekundu.",
+    },
+    "reliability.help.scheduled_reset": {
+      en: "Optional periodic reboot for problematic networks.",
+      cs: "Volitelný periodický restart pro problematické sítě.",
+    },
+    "reliability.help.reset_hours": {
+      en: "Number of hours between scheduled restarts.",
+      cs: "Počet hodin mezi plánovanými restarty.",
+    },
+    "reliability.recommended_threshold": {
+      en: "Recommended threshold: {value} pkt/s",
+      cs: "Doporučený práh: {value} pkt/s",
+    },
+    "thermal.overheat_protection": {
+      en: "Overheat Protection",
+      cs: "Ochrana proti přehřátí",
+    },
+    "thermal.shutdown_limit": {
+      en: "Shutdown Limit",
+      cs: "Vypínací teplota",
+    },
+    "thermal.status": { en: "Status", cs: "Stav" },
+    "thermal.current": { en: "Current Temp", cs: "Aktuální teplota" },
+    "thermal.peak": { en: "Peak Temp", cs: "Maximální teplota" },
+    "thermal.cpu": { en: "CPU Clock", cs: "Takt CPU" },
+    "thermal.last": { en: "Last Shutdown", cs: "Poslední zásah" },
+    "thermal.clear_latch": {
+      en: "Acknowledge & Re-enable RTSP",
+      cs: "Potvrdit a znovu povolit RTSP",
+    },
+    "thermal.help.overheat_protection": {
+      en: "Stops streaming when the ESP32 exceeds the configured limit.",
+      cs: "Zastaví stream, když ESP32 překročí nastavený limit.",
+    },
+    "thermal.help.shutdown_limit": {
+      en: "80 °C is a safe default for most open boards. Use 70–75 °C in tight enclosures.",
+      cs: "80 °C je bezpečná výchozí hodnota pro většinu odkrytých desek. V uzavřených krabičkách použijte 70–75 °C.",
+    },
+    "thermal.status_ready": {
+      en: "Protection ready",
+      cs: "Ochrana připravena",
+    },
+    "thermal.status_disabled": {
+      en: "Protection disabled",
+      cs: "Ochrana vypnuta",
+    },
+    "thermal.status_latched": {
+      en: "Cooling required, restart manually",
+      cs: "Vyžadováno ochlazení, restartujte ručně",
+    },
+    "thermal.status_sensor_fault": {
+      en: "Sensor unavailable, protection paused",
+      cs: "Senzor nedostupný, ochrana pozastavena",
+    },
+    "thermal.status_latched_persist": {
+      en: "Protection latched, acknowledge to re-enable",
+      cs: "Ochrana zablokována, potvrďte znovupovolení",
+    },
+    "thermal.last_none": {
+      en: "No shutdown recorded yet.",
+      cs: "Zatím nebylo zaznamenáno žádné vypnutí.",
+    },
+    "thermal.last_sensor_fault": {
+      en: "Thermal protection disabled because the temperature sensor is unavailable.",
+      cs: "Tepelná ochrana je vypnuta, protože teplotní senzor není dostupný.",
+    },
+    "thermal.last_fmt": {
+      en: "Stopped at {temp} °C with a {limit} °C limit after {time} uptime ({ago}).",
+      cs: "Stream se zastavil při {temp} °C s limitem {limit} °C po době běhu {time} ({ago}).",
+    },
+    "thermal.latch_notice": {
+      en: "Thermal shutdown latched the RTSP server. Re-enable it only after the hardware has cooled down.",
+      cs: "Tepelná ochrana zablokovala RTSP server. Znovu jej povolte až po vychladnutí hardwaru.",
+    },
+    "advanced.i2s_shift": { en: "I2S Shift", cs: "I2S posun" },
+    "advanced.i2s_shift_value": {
+      en: "0 bits (fixed for PDM microphones)",
+      cs: "0 bitů (pevně pro PDM mikrofony)",
+    },
+    "advanced.check_interval": {
+      en: "Check Interval",
+      cs: "Interval kontroly",
+    },
+    "advanced.wifi_tx_power": {
+      en: "TX Power",
+      cs: "TX výkon",
+    },
+    "advanced.hostname": { en: "Hostname", cs: "Hostname" },
+    "advanced.cpu_frequency": {
+      en: "CPU Frequency",
+      cs: "Frekvence CPU",
+    },
+    "advanced.help.check_interval": {
+      en: "How often reliability checks run while the device is active.",
+      cs: "Jak často se provádějí kontroly spolehlivosti, když je zařízení aktivní.",
+    },
+    "advanced.help.wifi_tx_power": {
+      en: "Lower transmit power can reduce RF self-noise but also reduces range.",
+      cs: "Nižší vysílací výkon může omezit vlastní RF šum, ale zkracuje dosah.",
+    },
+    "advanced.help.hostname": {
+      en: "Changing the mDNS hostname schedules a reboot.",
+      cs: "Změna mDNS hostname naplánuje restart.",
+    },
+    "advanced.help.cpu_frequency": {
+      en: "Lower CPU speeds reduce heat and power usage. 120 MHz is a balanced default.",
+      cs: "Nižší takty snižují teplotu i spotřebu. 120 MHz je vyvážená výchozí hodnota.",
+    },
+    "logs.help": {
+      en: "Live device log output. New lines append automatically.",
+      cs: "Živý výstup logu zařízení. Nové řádky se doplňují automaticky.",
+    },
+  },
+};
+
+const LANGUAGE_OPTIONS = [
+  { value: "en", label: "English" },
+  { value: "cs", label: "Čeština" },
+];
+
+const BUFFER_OPTIONS = [256, 512, 1024, 2048, 3072, 4096, 6144, 9600];
+const WIFI_TX_OPTIONS = [-1.0, 2.0, 5.0, 7.0, 8.5, 11.0, 13.0, 15.0, 17.0, 18.5, 19.0, 19.5];
+const CPU_OPTIONS = [80, 120, 160, 240];
+const THERMAL_LIMIT_OPTIONS = [30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95];
+
+const state = {
+  lang: "en",
+  loading: true,
+  error: "",
+  info: "",
+  overlay: "",
+  copyLabelKey: "common.copy_logs",
+  status: null,
+  audio: null,
+  perf: null,
+  thermal: null,
+  logs: "",
+  drafts: {},
+  dirty: {},
+  saving: {},
+};
+
+let reconnectTimer = null;
+let pollTimer = null;
+
+function createI18n(config) {
+  let lang = detectInitialLanguage(config);
+
+  function get(key) {
+    const entry = config.translations[key];
+    if (!entry) return key;
+    return entry[lang] ?? entry[config.default_language] ?? key;
+  }
+
+  return {
+    getLang() {
+      return lang;
+    },
+    getLanguages() {
+      return config.languages.slice();
+    },
+    setLang(next) {
+      const normalized = config.languages.includes(next)
+        ? next
+        : config.default_language;
+      lang = normalized;
+      try {
+        localStorage.setItem("lang", normalized);
+      } catch (_error) {}
+    },
+    t(key, params = {}) {
+      let text = get(key);
+      return text.replace(/\{(\w+)\}/g, (_match, token) => {
+        return params[token] ?? `{${token}}`;
+      });
+    },
+  };
+}
+
+function detectInitialLanguage(config) {
+  try {
+    const saved = localStorage.getItem("lang");
+    if (saved && config.languages.includes(saved)) return saved;
+  } catch (_error) {}
+  const nav = (navigator.language || "").toLowerCase();
+  const base = nav.split("-")[0];
+  return config.languages.includes(base) ? base : config.default_language;
+}
+
+const i18n = createI18n(I18N_CONFIG);
+state.lang = i18n.getLang();
+document.documentElement.lang = state.lang;
+
+function t(key, params) {
+  return i18n.t(key, params);
+}
+
+function rerender() {
+  document.title = t("app.title");
+  render(html`<${App} />`, document.getElementById("app"));
+}
+
+function setState(patch) {
+  Object.assign(state, patch);
+  rerender();
+}
+
+function updateDraft(key, value) {
+  state.drafts[key] = String(value);
+  state.dirty[key] = true;
+  rerender();
+}
+
+function getDraftValue(key, fallback) {
+  if (Object.prototype.hasOwnProperty.call(state.drafts, key)) {
+    return state.drafts[key];
+  }
+  if (fallback === null || fallback === undefined) return "";
+  return String(fallback);
+}
+
+function clearDraft(key) {
+  delete state.drafts[key];
+  delete state.dirty[key];
+}
+
+function setInfo(message) {
+  state.info = message;
+  rerender();
+}
+
+function clearInfoSoon() {
+  window.setTimeout(() => {
+    if (state.info) {
+      state.info = "";
+      rerender();
+    }
+  }, 2000);
+}
+
+async function apiJson(path, options = {}) {
+  const response = await fetch(path, {
+    cache: "no-store",
+    ...options,
+  });
+  const text = await response.text();
+  let data = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (_error) {
+      throw new Error(`${path}: invalid JSON`);
+    }
+  }
+  if (!response.ok) {
+    throw new Error(data.error || response.statusText || path);
+  }
+  return data;
+}
+
+async function apiText(path, options = {}) {
+  const response = await fetch(path, {
+    cache: "no-store",
+    ...options,
+  });
+  if (!response.ok) {
+    throw new Error(response.statusText || path);
+  }
+  return response.text();
+}
+
+async function loadAll({ silent = false } = {}) {
+  if (!silent) {
+    state.loading = true;
+    rerender();
+  }
+
+  const results = await Promise.allSettled([
+    apiJson("/api/status"),
+    apiJson("/api/audio_status"),
+    apiJson("/api/perf_status"),
+    apiJson("/api/thermal"),
+    apiText("/api/logs"),
+  ]);
+
+  let hadError = false;
+
+  if (results[0].status === "fulfilled") state.status = results[0].value;
+  else hadError = true;
+
+  if (results[1].status === "fulfilled") state.audio = results[1].value;
+  else hadError = true;
+
+  if (results[2].status === "fulfilled") state.perf = results[2].value;
+  else hadError = true;
+
+  if (results[3].status === "fulfilled") state.thermal = results[3].value;
+  else hadError = true;
+
+  if (results[4].status === "fulfilled") state.logs = results[4].value;
+  else hadError = true;
+
+  state.loading = false;
+  state.error = hadError ? t("common.refresh_error") : "";
+  rerender();
+}
+
+async function saveSetting(key, rawValue) {
+  const value = String(rawValue ?? "").trim().replace(",", ".");
+  if (!value) return;
+
+  state.saving[key] = true;
+  state.drafts[key] = value;
+  rerender();
+
+  try {
+    const data = await apiJson(
+      `/api/set?key=${encodeURIComponent(key)}&value=${encodeURIComponent(value)}`,
+    );
+    if (!data.ok) throw new Error(t("common.save_error"));
+    await loadAll({ silent: true });
+    clearDraft(key);
+    state.error = "";
+  } catch (error) {
+    state.error = error.message || t("common.save_error");
+  } finally {
+    delete state.saving[key];
+    rerender();
+  }
+}
+
+async function runAction(actionName) {
+  try {
+    const data = await apiJson(`/api/action/${actionName}`);
+    if (!data.ok) throw new Error(t("common.action_error"));
+    await loadAll({ silent: true });
+  } catch (error) {
+    state.error = error.message || t("common.action_error");
+    rerender();
+  }
+}
+
+function startReconnectLoop() {
+  window.clearTimeout(reconnectTimer);
+
+  const tick = async () => {
+    try {
+      await apiJson("/api/status");
+      window.location.reload();
+    } catch (_error) {
+      reconnectTimer = window.setTimeout(tick, 2000);
+    }
+  };
+
+  reconnectTimer = window.setTimeout(tick, 4000);
+}
+
+async function handleReboot() {
+  if (!window.confirm(t("action.confirm_reboot"))) return;
+  setState({ overlay: t("overlay.restarting"), error: "" });
+  try {
+    await apiJson("/api/action/reboot");
+    startReconnectLoop();
+  } catch (error) {
+    setState({ overlay: "", error: error.message || t("common.action_error") });
+  }
+}
+
+async function handleDefaults() {
+  if (!window.confirm(t("action.confirm_defaults"))) return;
+  setState({ overlay: t("overlay.resetting"), error: "" });
+  try {
+    await apiJson("/api/action/factory_reset");
+    startReconnectLoop();
+  } catch (error) {
+    setState({ overlay: "", error: error.message || t("common.action_error") });
+  }
+}
+
+async function handleWifiSetup() {
+  if (!window.confirm(t("action.confirm_wifi"))) return;
+  setState({ overlay: t("overlay.wifi"), error: "" });
+  try {
+    await apiJson("/api/action/reconfigure_wifi");
+  } catch (error) {
+    setState({ overlay: "", error: error.message || t("common.action_error") });
+  }
+}
+
+async function handleHostnameSave() {
+  const value = String(state.drafts.hostname ?? state.status?.mdns_hostname ?? "")
+    .trim()
+    .replace(/\s+/g, "");
+  if (!value) return;
+
+  state.saving.hostname = true;
+  state.drafts.hostname = value;
+  state.overlay = t("overlay.restarting");
+  rerender();
+
+  try {
+    const data = await apiJson(
+      `/api/set?key=hostname&value=${encodeURIComponent(value)}`,
+    );
+    if (!data.ok) throw new Error(t("common.save_error"));
+    startReconnectLoop();
+  } catch (error) {
+    delete state.saving.hostname;
+    setState({
+      overlay: "",
+      error: error.message || t("common.save_error"),
+    });
+  }
+}
+
+async function handleThermalClear() {
+  try {
+    const data = await apiJson("/api/thermal/clear", { method: "POST" });
+    if (!data.ok) throw new Error(t("common.action_error"));
+    await loadAll({ silent: true });
+  } catch (error) {
+    state.error = error.message || t("common.action_error");
+    rerender();
+  }
+}
+
+async function copyLogs() {
+  const text = state.logs || "";
+  if (!text) return;
+
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+    state.copyLabelKey = "common.copied";
+    rerender();
+    window.setTimeout(() => {
+      state.copyLabelKey = "common.copy_logs";
+      rerender();
+    }, 1500);
+  } catch (_error) {}
+}
+
+function handleLanguageChange(event) {
+  const next = event.target.value;
+  i18n.setLang(next);
+  state.lang = i18n.getLang();
+  document.documentElement.lang = state.lang;
+  if (state.error) state.error = t("common.refresh_error");
+  if (state.info) state.info = "";
+  rerender();
+}
+
+function profileLabel(bufferSize) {
+  const value = Number(bufferSize) || 0;
+  if (value <= 256) return t("audio.profile_ultra");
+  if (value <= 512) return t("audio.profile_balanced");
+  if (value <= 1024) return t("audio.profile_stable");
+  return t("audio.profile_high");
+}
+
+function boolPill(value, yesLabel, noLabel) {
+  return renderPill(value ? yesLabel : noLabel, value ? "ok" : "bad");
+}
+
+function renderPill(label, tone = "neutral") {
+  return html`<span class=${`status-pill ${tone}`}>${label}</span>`;
+}
+
+function formatNumber(value, digits = 1) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value.toFixed(digits)
+    : t("common.na");
+}
+
+function formatTemperature(value) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? `${value.toFixed(1)} °C`
+    : t("common.na");
+}
+
+function formatLevel(audio) {
+  if (!audio) return t("common.loading");
+
+  const pct = typeof audio.peak_pct === "number" ? audio.peak_pct : 0;
+  const db = typeof audio.peak_dbfs === "number" ? audio.peak_dbfs : -90;
+  const clips = typeof audio.clip_count === "number" ? audio.clip_count : 0;
+  const base = audio.clip
+    ? t("audio.level_bad")
+    : pct >= 90
+      ? t("audio.level_warn")
+      : t("audio.level_ok");
+
+  const detailKey = audio.clip ? "audio.level_value_clips" : "audio.level_value";
+  const detail = t(detailKey, {
+    pct: pct.toFixed(0),
+    db: db.toFixed(1),
+    clips: String(clips),
+  });
+
+  const tone = audio.clip ? "bad" : pct >= 90 ? "warn" : "ok";
+  return html`
+    <div>
+      ${renderPill(base, tone)}
+      <div class="meta-note">${detail}</div>
+    </div>
+  `;
+}
+
+function formatThermalStatus(thermal) {
+  if (!thermal) return renderPill(t("common.loading"), "neutral");
+  if (thermal.sensor_fault) return renderPill(t("thermal.status_sensor_fault"), "warn");
+  if (thermal.latched_persist) return renderPill(t("thermal.status_latched_persist"), "warn");
+  if (!thermal.protection_enabled) return renderPill(t("thermal.status_disabled"), "bad");
+  if (thermal.manual_restart || thermal.latched) {
+    return renderPill(t("thermal.status_latched"), "warn");
+  }
+  return renderPill(t("thermal.status_ready"), "ok");
+}
+
+function formatThermalLast(thermal) {
+  if (!thermal) return t("common.loading");
+  if (thermal.sensor_fault) return t("thermal.last_sensor_fault");
+  if (thermal.last_trip_ts) {
+    return t("thermal.last_fmt", {
+      temp:
+        typeof thermal.last_trip_c === "number" && Number.isFinite(thermal.last_trip_c)
+          ? thermal.last_trip_c.toFixed(1)
+          : "0.0",
+      limit: String(Math.round(Number(thermal.shutdown_c) || 0)),
+      time: thermal.last_trip_ts || t("common.unknown"),
+      ago: thermal.last_trip_since || t("common.unknown"),
+    });
+  }
+  if (thermal.last_reason) return thermal.last_reason;
+  return t("thermal.last_none");
+}
+
+function summaryTiles() {
+  const status = state.status;
+  const thermal = state.thermal;
+  return [
+    {
+      label: t("app.summary.server"),
+      value: status
+        ? status.rtsp_server_enabled
+          ? t("status.server_enabled")
+          : t("status.server_disabled")
+        : t("common.loading"),
+    },
+    {
+      label: t("app.summary.streaming"),
+      value: status
+        ? status.streaming
+          ? t("status.streaming_yes")
+          : t("status.streaming_no")
+        : t("common.loading"),
+    },
+    {
+      label: t("app.summary.packet_rate"),
+      value: status ? `${status.current_rate_pkt_s} pkt/s` : t("common.loading"),
+    },
+    {
+      label: t("app.summary.temperature"),
+      value:
+        thermal && thermal.current_valid
+          ? formatTemperature(thermal.current_c)
+          : t("common.na"),
+    },
+  ];
+}
+
+function renderStatusRows() {
+  const status = state.status;
+  return [
+    [t("status.ip"), status?.ip || t("common.loading")],
+    [t("status.wifi_rssi"), status ? `${status.wifi_rssi} dBm` : t("common.loading")],
+    [
+      t("status.wifi_tx"),
+      status ? `${formatNumber(status.wifi_tx_dbm, 1)} dBm` : t("common.loading"),
+    ],
+    [
+      t("status.heap"),
+      status
+        ? `${status.free_heap_kb} KB (${status.min_free_heap_kb} KB)`
+        : t("common.loading"),
+    ],
+    [t("status.uptime"), status?.uptime || t("common.loading")],
+    [
+      t("status.rtsp_server"),
+      status
+        ? boolPill(
+            status.rtsp_server_enabled,
+            t("status.server_enabled"),
+            t("status.server_disabled"),
           )
-        )
-          return;
-        showOverlay(
-          "Rebooting into WiFi setup...\nConnect to ESP32-RTSP-Mic-AP",
-        );
-        act("reconfigure_wifi");
-      }
-      const locks = {};
-      const edits = {};
-      function setv(k, v) {
-        v = String(v ?? "")
-          .trim()
-          .replace(",", ".");
-        if (v === "") return;
-        locks[k] = Date.now() + 5000;
-        delete edits[k];
-        fetch(
-          "/api/set?key=" +
-            encodeURIComponent(k) +
-            "&value=" +
-            encodeURIComponent(v),
-          { cache: "no-store" },
-        )
-          .then((r) => r.json())
-          .then(loadAll);
-      }
-      function bindSaver(el, key) {
-        if (!el) return;
-        el.addEventListener("keydown", (e) => {
-          if (e.key === "Enter") {
-            setv(key, el.value);
+        : renderPill(t("common.loading"), "neutral"),
+    ],
+    [t("status.client"), status?.client || t("common.waiting")],
+    [
+      t("status.streaming"),
+      status
+        ? boolPill(
+            status.streaming,
+            t("status.streaming_yes"),
+            t("status.streaming_no"),
+          )
+        : renderPill(t("common.loading"), "neutral"),
+    ],
+    [
+      t("status.packet_rate"),
+      status ? `${status.current_rate_pkt_s} pkt/s` : t("common.loading"),
+    ],
+    [t("status.last_connect"), status?.last_rtsp_connect || t("common.waiting")],
+    [t("status.last_play"), status?.last_stream_start || t("common.waiting")],
+  ];
+}
+
+function DataTable({ rows }) {
+  return html`
+    <table class="data-table">
+      <tbody>
+        ${rows.map(
+          ([label, value]) => html`
+            <tr>
+              <th>${label}</th>
+              <td>${value}</td>
+            </tr>
+          `,
+        )}
+      </tbody>
+    </table>
+  `;
+}
+
+function SettingRow({ label, helpKey, controls, note }) {
+  return html`
+    <div class="setting-row">
+      <div class="setting-head">
+        <div class="setting-copy">
+          <span class="setting-label">${label}</span>
+          ${helpKey ? html`<p class="setting-help">${t(helpKey)}</p>` : null}
+          ${note ? html`<div class="meta-note">${note}</div>` : null}
+        </div>
+        <div class="setting-controls">${controls}</div>
+      </div>
+    </div>
+  `;
+}
+
+function TextInput({
+  fieldKey,
+  value,
+  type = "text",
+  min,
+  max,
+  step,
+  maxLength,
+  unit,
+  action,
+  actionLabel,
+  placeholder = "",
+}) {
+  const disabled = !!state.saving[fieldKey];
+  return html`
+    <div class="field-inline">
+      <input
+        type=${type}
+        value=${value}
+        min=${min}
+        max=${max}
+        step=${step}
+        maxlength=${maxLength}
+        placeholder=${placeholder}
+        onInput=${(event) => updateDraft(fieldKey, event.target.value)}
+        onKeyDown=${(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            action();
           }
-        });
-      }
-      function trackEdit(el, key) {
-        if (!el) return;
-        const bump = () => {
-          edits[key] = Date.now() + 10000;
-          toggleDirty(el, key);
-        };
-        el.addEventListener("input", bump);
-        el.addEventListener("change", bump);
-      }
-      function toggleDirty(el, key) {
-        if (!el) return;
-        const now = Date.now();
-        const d = edits[key] && now < edits[key];
-        el.classList.toggle("dirty", !!d);
-        if (!d) {
-          delete edits[key];
-        }
-      }
-      function setToggleState(on) {
-        const onb = $("b_srv_on"),
-          offb = $("b_srv_off");
-        if (onb && offb) {
-          onb.classList.toggle("active", on);
-          offb.classList.toggle("active", !on);
-          onb.disabled = on;
-          offb.disabled = !on;
-        }
-      }
-      function loadStatus() {
-        fetch("/api/status", { cache: "no-store" })
-          .then((r) => r.json())
-          .then((j) => {
-            $("ip").textContent = j.ip;
-            $("rssi").textContent = j.wifi_rssi + " dBm";
-            $("wtx").textContent = j.wifi_tx_dbm.toFixed(1) + " dBm";
-            $("heap").textContent =
-              j.free_heap_kb + " KB (" + j.min_free_heap_kb + " KB)";
-            $("uptime").textContent = j.uptime;
-            $("srv").innerHTML = fmtSrv(j.rtsp_server_enabled);
-            setToggleState(j.rtsp_server_enabled);
-            $("client").textContent = j.client || "Waiting...";
-            $("stream").innerHTML = fmtBool(j.streaming);
-            $("rate").textContent = j.current_rate_pkt_s + " pkt/s";
-            $("lcon").textContent = j.last_rtsp_connect;
-            $("lplay").textContent = j.last_stream_start;
-            const stx = $("sel_tx");
-            const now = Date.now();
-            if (stx) {
-              const editing = edits["wifi_tx"] && now < edits["wifi_tx"];
-              if (!(locks["wifi_tx"] && now < locks["wifi_tx"]) && !editing)
-                stx.value = j.wifi_tx_dbm.toFixed(1);
-              toggleDirty(stx, "wifi_tx");
-            }
-            const fv = $("fwv");
-            if (fv && j.fw_version) {
-              fv.textContent = "v" + j.fw_version;
-            }
-            const hn = $("in_hostname");
-            if (hn && j.mdns_hostname && document.activeElement !== hn)
-              hn.value = j.mdns_hostname;
-            const rtsp = $("rtsp");
-            if (rtsp && j.mdns_hostname)
-              rtsp.textContent =
-                "rtsp://" + j.mdns_hostname + ".local:8554/audio";
-          });
-      }
-      function loadAudio() {
-        fetch("/api/audio_status", { cache: "no-store" })
-          .then((r) => r.json())
-          .then((j) => {
-            const r = $("in_rate");
-            const g = $("in_gain");
-            const sb = $("sel_buf");
-            const s = $("in_shift");
-            const hp = $("sel_hp");
-            const hpc = $("in_hp_cutoff");
-            const now = Date.now();
-            if (r) {
-              const editing = edits["rate"] && now < edits["rate"];
-              if (!(locks["rate"] && now < locks["rate"]) && !editing)
-                r.value = j.sample_rate;
-              toggleDirty(r, "rate");
-            }
-            if (g) {
-              const editing = edits["gain"] && now < edits["gain"];
-              if (!(locks["gain"] && now < locks["gain"]) && !editing)
-                g.value = j.gain.toFixed(2);
-              toggleDirty(g, "gain");
-            }
-            if (sb) {
-              const editing = edits["buffer"] && now < edits["buffer"];
-              if (!(locks["buffer"] && now < locks["buffer"]) && !editing)
-                sb.value = j.buffer_size;
-              toggleDirty(sb, "buffer");
-            }
-            if (s) {
-              const editing = edits["shift"] && now < edits["shift"];
-              if (!(locks["shift"] && now < locks["shift"]) && !editing)
-                s.value = j.i2s_shift;
-              toggleDirty(s, "shift");
-            }
-            const dcb = $("sel_dcb");
-            if (dcb) {
-              const editing = edits["dc_blocker"] && now < edits["dc_blocker"];
-              if (
-                !(locks["dc_blocker"] && now < locks["dc_blocker"]) &&
-                !editing
-              )
-                dcb.value = j.dc_blocker_enable ? "on" : "off";
-              toggleDirty(dcb, "dc_blocker");
-            }
-            if (hp) {
-              const editing = edits["hp_enable"] && now < edits["hp_enable"];
-              if (!(locks["hp_enable"] && now < locks["hp_enable"]) && !editing)
-                hp.value = j.hp_enable ? "on" : "off";
-              toggleDirty(hp, "hp_enable");
-            }
-            if (hpc) {
-              const editing = edits["hp_cutoff"] && now < edits["hp_cutoff"];
-              if (!(locks["hp_cutoff"] && now < locks["hp_cutoff"]) && !editing)
-                hpc.value = j.hp_cutoff_hz;
-              toggleDirty(hpc, "hp_cutoff");
-            }
-            const agc = $("sel_agc");
-            if (agc) {
-              const editing = edits["agc_enable"] && now < edits["agc_enable"];
-              if (
-                !(locks["agc_enable"] && now < locks["agc_enable"]) &&
-                !editing
-              )
-                agc.value = j.agc_enable ? "on" : "off";
-              toggleDirty(agc, "agc_enable");
-            }
-            const agi = $("agc_info");
-            if (agi) {
-              if (j.agc_enable)
-                agi.textContent =
-                  "x" +
-                  j.agc_multiplier.toFixed(1) +
-                  " (eff: " +
-                  j.effective_gain.toFixed(1) +
-                  "x)";
-              else agi.textContent = "";
-            }
-            const led = $("sel_led");
-            if (led) {
-              const editing = edits["led_mode"] && now < edits["led_mode"];
-              if (!(locks["led_mode"] && now < locks["led_mode"]) && !editing)
-                led.value = String(j.led_mode || 0);
-              toggleDirty(led, "led_mode");
-            }
-            $("lat").textContent = j.latency_ms.toFixed(1) + " ms";
-            $("profile").textContent = profileText(j.buffer_size);
-            const L = T[lang];
-            const lvl = $("level");
-            if (lvl) {
-              const pct = j.peak_pct || 0,
-                db = j.peak_dbfs || -90,
-                clip = j.clip,
-                cc = j.clip_count || 0;
-              if (clip) {
-                lvl.innerHTML = `<span class='bad'>${L.clip_bad}</span> Peak ${pct.toFixed(0)}% (${db.toFixed(1)} dBFS), clips: ${cc}`;
-              } else if (pct >= 90) {
-                lvl.innerHTML = `<span class='warn'>${L.clip_warn}</span> Peak ${pct.toFixed(0)}% (${db.toFixed(1)} dBFS)`;
-              } else {
-                lvl.textContent = `Peak ${pct.toFixed(0)}% (${db.toFixed(1)} dBFS) — ${L.clip_ok}`;
-              }
-            }
-            updateAdvice(j);
-          });
-      }
-      function updateAdvice(a) {
-        const L = T[lang];
-        let tips = [];
-        if (a.buffer_size < 512) tips.push(L.adv_buf512);
-        if (a.buffer_size < 1024) tips.push(L.adv_buf1024);
-        if (a.gain > 20) tips.push(L.adv_gain);
-        $("adv").textContent = tips.join(" ");
-      }
-      function loadPerf() {
-        fetch("/api/perf_status", { cache: "no-store" })
-          .then((r) => r.json())
-          .then((j) => {
-            const thr = $("in_thr");
-            const chk = $("in_chk");
-            const mode = $("in_thr_mode");
-            const sch = $("in_sched");
-            const hrs = $("in_hours");
-            const now = Date.now();
-            const el = $("in_auto");
-            if (el) {
-              const editing =
-                edits["auto_recovery"] && now < edits["auto_recovery"];
-              if (
-                !(locks["auto_recovery"] && now < locks["auto_recovery"]) &&
-                !editing
-              )
-                el.value = j.auto_recovery ? "on" : "off";
-              toggleDirty(el, "auto_recovery");
-            }
-            if (mode) {
-              const editing = edits["thr_mode"] && now < edits["thr_mode"];
-              if (!(locks["thr_mode"] && now < locks["thr_mode"]) && !editing)
-                mode.value = j.auto_threshold ? "auto" : "manual";
-              toggleDirty(mode, "thr_mode");
-            }
-            if (thr) {
-              const editing = edits["min_rate"] && now < edits["min_rate"];
-              if (!(locks["min_rate"] && now < locks["min_rate"]) && !editing)
-                thr.value = j.restart_threshold_pkt_s;
-              toggleDirty(thr, "min_rate");
-            }
-            if (chk) {
-              const editing =
-                edits["check_interval"] && now < edits["check_interval"];
-              if (
-                !(locks["check_interval"] && now < locks["check_interval"]) &&
-                !editing
-              )
-                chk.value = j.check_interval_min;
-              toggleDirty(chk, "check_interval");
-            }
-            if (sch) {
-              const editing =
-                edits["sched_reset"] && now < edits["sched_reset"];
-              if (
-                !(locks["sched_reset"] && now < locks["sched_reset"]) &&
-                !editing
-              )
-                sch.value = j.scheduled_reset ? "on" : "off";
-              toggleDirty(sch, "sched_reset");
-            }
-            if (hrs) {
-              const editing =
-                edits["reset_hours"] && now < edits["reset_hours"];
-              if (
-                !(locks["reset_hours"] && now < locks["reset_hours"]) &&
-                !editing
-              )
-                hrs.value = j.reset_hours;
-              toggleDirty(hrs, "reset_hours");
-            }
-            $("row_min_rate").style.display = j.auto_threshold ? "none" : "";
-          });
-      }
-      function loadTherm() {
-        fetch("/api/thermal", { cache: "no-store" })
-          .then((r) => r.json())
-          .then((j) => {
-            const now = Date.now();
-            const L = T[lang];
-            const en = $("sel_oh_enable");
-            if (en) {
-              const editing = edits["oh_enable"] && now < edits["oh_enable"];
-              if (!(locks["oh_enable"] && now < locks["oh_enable"]) && !editing)
-                en.value = j.protection_enabled ? "on" : "off";
-              toggleDirty(en, "oh_enable");
-            }
-            const lim = $("sel_oh_limit");
-            if (lim) {
-              const editing = edits["oh_limit"] && now < edits["oh_limit"];
-              if (!(locks["oh_limit"] && now < locks["oh_limit"]) && !editing)
-                lim.value = (Number(j.shutdown_c) || 80).toFixed(0);
-              toggleDirty(lim, "oh_limit");
-            }
-            const sc = $("sel_cpu");
-            if (sc && !(locks["cpu_freq"] && now < locks["cpu_freq"])) {
-              sc.value = j.cpu_mhz;
-            }
-            const currentValid =
-              j.current_valid &&
-              typeof j.current_c === "number" &&
-              isFinite(j.current_c);
-            const cur = $("therm_now");
-            if (cur)
-              cur.textContent = currentValid
-                ? j.current_c.toFixed(1) + " °C"
-                : "N/A";
-            const max = $("therm_max");
-            if (max) {
-              const maxValid = typeof j.max_c === "number" && isFinite(j.max_c);
-              max.textContent = maxValid ? j.max_c.toFixed(1) + " °C" : "N/A";
-            }
-            const cpu = $("therm_cpu");
-            if (cpu) cpu.textContent = j.cpu_mhz + " MHz";
-            const status = $("therm_status");
-            if (status) {
-              if (j.sensor_fault) {
-                status.innerHTML =
-                  "<span class=warn>" + L.therm_status_sensor_fault + "</span>";
-              } else if (j.latched_persist) {
-                status.innerHTML =
-                  "<span class=warn>" +
-                  L.therm_status_latched_persist +
-                  "</span>";
-              } else if (!j.protection_enabled) {
-                status.innerHTML =
-                  "<span class=bad>" + L.therm_status_disabled + "</span>";
-              } else if (j.manual_restart || j.latched) {
-                status.innerHTML =
-                  "<span class=warn>" + L.therm_status_latched + "</span>";
-              } else {
-                status.innerHTML =
-                  "<span class=ok>" + L.therm_status_ready + "</span>";
-              }
-            }
-            const latchRow = $("row_therm_latch");
-            const latchMsg = $("txt_therm_latch");
-            const latchBtn = $("btn_therm_clear");
-            if (latchRow) {
-              if (j.latched_persist) {
-                latchRow.style.display = "";
-                if (latchMsg) latchMsg.textContent = L.therm_latch_notice;
-                if (latchBtn) {
-                  latchBtn.textContent = L.therm_clear_btn;
-                  latchBtn.disabled = false;
-                }
-              } else {
-                latchRow.style.display = "none";
-                if (latchBtn) {
-                  latchBtn.disabled = true;
-                }
-              }
-            }
-            const last = $("therm_last");
-            if (last) {
-              if (j.sensor_fault) {
-                last.textContent = L.therm_last_sensor_fault;
-              } else if (j.last_trip_ts && j.last_trip_ts.length) {
-                let msg = L.therm_last_fmt;
-                const temp =
-                  typeof j.last_trip_c === "number" &&
-                  isFinite(j.last_trip_c) &&
-                  j.last_trip_c > 0
-                    ? j.last_trip_c.toFixed(1)
-                    : "0";
-                const limit = (Number(j.shutdown_c) || 0).toFixed(0);
-                const ts = j.last_trip_ts || L.therm_time_unknown;
-                const ago = j.last_trip_since || L.therm_time_ago_unknown;
-                msg = msg
-                  .replace("%TEMP%", temp)
-                  .replace("%LIMIT%", limit)
-                  .replace("%TIME%", ts)
-                  .replace("%AGO%", ago);
-                last.textContent = msg;
-                if (j.latched_persist) {
-                  last.textContent += " — " + L.therm_status_latched_persist;
-                } else if (j.manual_restart) {
-                  last.textContent += " — " + L.therm_status_latched;
-                }
-              } else if (j.last_reason && j.last_reason.length) {
-                last.textContent = j.last_reason;
-              } else {
-                last.textContent = L.therm_last_none;
-              }
-            }
-          });
-      }
-      function loadLogs() {
-        fetch("/api/logs", { cache: "no-store" })
-          .then((r) => r.text())
-          .then((t) => {
-            const lg = $("logs");
-            lg.textContent = t;
-            lg.scrollTop = lg.scrollHeight;
-          });
-      }
-      function setHostname() {
-        const v = $("in_hostname").value.trim();
-        if (!v) return;
-        rebootSequence("reboot");
-        fetch("/api/set?key=hostname&value=" + encodeURIComponent(v), {
-          cache: "no-store",
-        }).then(() => act("reboot"));
-      }
-      function loadAll() {
-        loadStatus();
-        loadAudio();
-        loadPerf();
-        loadTherm();
-        loadLogs();
-      }
-      function clearThermalLatch() {
-        const btn = $("btn_therm_clear");
-        if (btn) btn.disabled = true;
-        fetch("/api/thermal/clear", { method: "POST", cache: "no-store" })
-          .then((r) => r.json())
-          .then((j) => {
-            if (!j.ok) {
-              console.warn("Thermal latch clear rejected");
-            }
-            loadAll();
-          })
-          .catch(() => loadAll());
-      }
-      setInterval(loadAll, 3000);
-      const sel = document.getElementById("langSel");
-      sel.value = lang;
-      sel.onchange = () => {
-        lang = sel.value;
-        localStorage.setItem("lang", lang);
-        applyLang();
-      };
-      applyLang();
-      bindSaver($("in_rate"), "rate");
-      bindSaver($("in_gain"), "gain");
-      bindSaver($("in_shift"), "shift");
-      bindSaver($("in_thr"), "min_rate");
-      bindSaver($("in_chk"), "check_interval");
-      bindSaver($("in_hours"), "reset_hours");
-      bindSaver($("in_hp_cutoff"), "hp_cutoff");
-      trackEdit($("in_rate"), "rate");
-      trackEdit($("in_gain"), "gain");
-      trackEdit($("in_shift"), "shift");
-      trackEdit($("in_thr"), "min_rate");
-      trackEdit($("in_chk"), "check_interval");
-      trackEdit($("in_hours"), "reset_hours");
-      trackEdit($("in_hp_cutoff"), "hp_cutoff");
-      trackEdit($("sel_led"), "led_mode");
-      trackEdit($("in_auto"), "auto_recovery");
-      trackEdit($("in_thr_mode"), "thr_mode");
-      trackEdit($("in_sched"), "sched_reset");
-      trackEdit($("sel_buf"), "buffer");
-      trackEdit($("sel_tx"), "wifi_tx");
-      trackEdit($("sel_dcb"), "dc_blocker");
-      trackEdit($("sel_hp"), "hp_enable");
-      trackEdit($("sel_agc"), "agc_enable");
-      trackEdit($("sel_cpu"), "cpu_freq");
-      trackEdit($("sel_oh_enable"), "oh_enable");
-      trackEdit($("sel_oh_limit"), "oh_limit");
-      const H = (hid, rid) => {
-        const h = $(hid),
-          r = $(rid);
-        if (h && r) {
-          h.onclick = () => {
-            r.style.display =
-              r.style.display === "none" || !r.style.display ? "block" : "none";
-          };
-        }
-      };
-      H("h_dcb", "row_dcb_hint");
-      H("h_led", "row_led_hint");
-      H("h_rate", "row_rate_hint");
-      H("h_gain", "row_gain_hint");
-      H("h_hpf", "row_hpf_hint");
-      H("h_hpf_cut", "row_hpf_cut_hint");
-      H("h_agc", "row_agc_hint");
-      H("h_buf", "row_buf_hint");
-      H("h_auto", "row_auto_hint");
-      H("h_thr", "row_thr_hint");
-      H("h_thr_mode", "row_thrmode_hint");
-      H("h_chk", "row_chk_hint");
-      H("h_sched", "row_sched_hint");
-      H("h_hours", "row_hours_hint");
-      H("h_tx", "row_tx_hint");
-      H("h_shift", "row_shift_hint");
-      H("h_cpu", "row_cpu_hint");
-      H("h_level", "row_level_hint");
-      H("h_therm_protect", "row_therm_hint_protect");
-      H("h_therm_limit", "row_therm_hint_limit");
-      loadAll();
+        }}
+      />
+      ${unit ? html`<span class="field-unit">${unit}</span>` : null}
+      <button disabled=${disabled} onClick=${action}>${actionLabel}</button>
+    </div>
+  `;
+}
+
+function SelectInput({ fieldKey, value, options, action, actionLabel, formatOption }) {
+  const disabled = !!state.saving[fieldKey];
+  return html`
+    <div class="field-inline">
+      <select
+        value=${value}
+        onChange=${(event) => updateDraft(fieldKey, event.target.value)}
+      >
+        ${options.map((option) => {
+          const optionValue = String(option);
+          return html`
+            <option value=${optionValue}>
+              ${formatOption ? formatOption(option) : optionValue}
+            </option>
+          `;
+        })}
+      </select>
+      <button disabled=${disabled} onClick=${action}>${actionLabel}</button>
+    </div>
+  `;
+}
+
+function HeroCard() {
+  const status = state.status;
+  const rtspUrl = status?.mdns_hostname
+    ? `rtsp://${status.mdns_hostname}.local:8554/audio`
+    : t("common.loading");
+  const serverEnabled = !!status?.rtsp_server_enabled;
+
+  return html`
+    <section class="card hero-card">
+      <div class="hero-top">
+        <div>
+          <div class="eyebrow">M5Stack Atom Echo</div>
+          <h1 class="hero-title">${t("app.title")}</h1>
+          <p class="card-intro">${t("app.subtitle")}</p>
+          <div class="hero-meta">
+            <span class="firmware-badge">
+              ${status?.fw_version ? `v${status.fw_version}` : t("common.loading")}
+            </span>
+            ${status
+              ? renderPill(
+                  serverEnabled ? t("status.server_enabled") : t("status.server_disabled"),
+                  serverEnabled ? "ok" : "bad",
+                )
+              : renderPill(t("common.loading"), "neutral")}
+          </div>
+          <div class="hero-url">
+            <span class="hero-url-label">${t("app.rtsp_url")}</span>
+            <span class="hero-url-value mono">${rtspUrl}</span>
+          </div>
+        </div>
+
+        <div class="hero-side">
+          <a
+            class="button button-outline hero-link"
+            href="https://github.com/stedrow/birdnetgo-m5stack-atom-echo-rtsp-mic"
+            target="_blank"
+            rel="noreferrer"
+          >
+            ${t("app.repository")}
+          </a>
+
+          <label>
+            ${t("app.language")}
+            <select value=${state.lang} onChange=${handleLanguageChange}>
+              ${LANGUAGE_OPTIONS.map(
+                (option) => html`
+                  <option value=${option.value}>${option.label}</option>
+                `,
+              )}
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="summary-grid">
+        ${summaryTiles().map(
+          (tile) => html`
+            <div class="summary-tile">
+              <span class="summary-label">${tile.label}</span>
+              <span class="summary-value">${tile.value}</span>
+            </div>
+          `,
+        )}
+      </div>
+
+      <div class="action-bar">
+        <button
+          disabled=${!!status?.rtsp_server_enabled}
+          onClick=${() => runAction("server_start")}
+        >
+          ${t("action.server_start")}
+        </button>
+        <button
+          class="button button-outline"
+          disabled=${status ? !status.rtsp_server_enabled : true}
+          onClick=${() => runAction("server_stop")}
+        >
+          ${t("action.server_stop")}
+        </button>
+        <button class="button button-outline" onClick=${() => runAction("reset_i2s")}>
+          ${t("action.reset_i2s")}
+        </button>
+        <button class="button subtle" onClick=${handleReboot}>${t("action.reboot")}</button>
+        <button class="button button-warn" onClick=${handleDefaults}>
+          ${t("action.defaults")}
+        </button>
+        <button class="button subtle" onClick=${handleWifiSetup}>
+          ${t("action.wifi_setup")}
+        </button>
+      </div>
+    </section>
+  `;
+}
+
+function StatusCard() {
+  return html`
+    <section class="card">
+      <h2>${t("section.status")}</h2>
+      <${DataTable} rows=${renderStatusRows()} />
+    </section>
+  `;
+}
+
+function AudioCard() {
+  const audio = state.audio;
+  const currentRate = audio?.sample_rate ?? "";
+  const currentGain =
+    typeof audio?.gain === "number" ? audio.gain.toFixed(2) : "";
+  const currentDcBlocker = audio?.dc_blocker_enable ? "on" : "off";
+  const currentHpEnable = audio?.hp_enable ? "on" : "off";
+  const currentHpCutoff = audio?.hp_cutoff_hz ?? "";
+  const currentAgc = audio?.agc_enable ? "on" : "off";
+  const currentLed = audio?.led_mode ?? 0;
+  const currentBuffer = audio?.buffer_size ?? 9600;
+
+  const agcInfo =
+    audio?.agc_enable && typeof audio?.agc_multiplier === "number"
+      ? t("audio.agc_info", {
+          multiplier: audio.agc_multiplier.toFixed(1),
+          effective: Number(audio.effective_gain || 0).toFixed(1),
+        })
+      : "";
+
+  return html`
+    <section class="card">
+      <h2>${t("section.audio")}</h2>
+      <div class="setting-list">
+        <${SettingRow}
+          label=${t("audio.sample_rate")}
+          helpKey="audio.help.sample_rate"
+          controls=${html`
+            <${TextInput}
+              fieldKey="rate"
+              type="number"
+              min="8000"
+              max="48000"
+              step="1000"
+              unit="Hz"
+              value=${getDraftValue("rate", currentRate)}
+              action=${() =>
+                saveSetting("rate", getDraftValue("rate", currentRate))}
+              actionLabel=${t("common.set")}
+            />
+          `}
+        />
+        <${SettingRow}
+          label=${t("audio.gain")}
+          helpKey="audio.help.gain"
+          controls=${html`
+            <${TextInput}
+              fieldKey="gain"
+              type="number"
+              min="0.1"
+              max="100"
+              step="0.1"
+              unit="×"
+              value=${getDraftValue("gain", currentGain)}
+              action=${() =>
+                saveSetting("gain", getDraftValue("gain", currentGain))}
+              actionLabel=${t("common.set")}
+            />
+          `}
+        />
+        <${SettingRow}
+          label=${t("audio.dc_blocker")}
+          helpKey="audio.help.dc_blocker"
+          controls=${html`
+            <${SelectInput}
+              fieldKey="dc_blocker"
+              value=${getDraftValue("dc_blocker", currentDcBlocker)}
+              options=${["off", "on"]}
+              formatOption=${(value) =>
+                value === "on" ? t("common.on") : t("common.off")}
+              action=${() =>
+                saveSetting(
+                  "dc_blocker",
+                  getDraftValue("dc_blocker", currentDcBlocker),
+                )}
+              actionLabel=${t("common.set")}
+            />
+          `}
+        />
+        <${SettingRow}
+          label=${t("audio.highpass")}
+          helpKey="audio.help.highpass"
+          controls=${html`
+            <${SelectInput}
+              fieldKey="hp_enable"
+              value=${getDraftValue("hp_enable", currentHpEnable)}
+              options=${["off", "on"]}
+              formatOption=${(value) =>
+                value === "on" ? t("common.on") : t("common.off")}
+              action=${() =>
+                saveSetting(
+                  "hp_enable",
+                  getDraftValue("hp_enable", currentHpEnable),
+                )}
+              actionLabel=${t("common.set")}
+            />
+          `}
+        />
+        <${SettingRow}
+          label=${t("audio.highpass_cutoff")}
+          helpKey="audio.help.highpass_cutoff"
+          controls=${html`
+            <${TextInput}
+              fieldKey="hp_cutoff"
+              type="number"
+              min="10"
+              max="10000"
+              step="10"
+              unit="Hz"
+              value=${getDraftValue("hp_cutoff", currentHpCutoff)}
+              action=${() =>
+                saveSetting(
+                  "hp_cutoff",
+                  getDraftValue("hp_cutoff", currentHpCutoff),
+                )}
+              actionLabel=${t("common.set")}
+            />
+          `}
+        />
+        <${SettingRow}
+          label=${t("audio.agc")}
+          helpKey="audio.help.agc"
+          note=${agcInfo}
+          controls=${html`
+            <${SelectInput}
+              fieldKey="agc_enable"
+              value=${getDraftValue("agc_enable", currentAgc)}
+              options=${["off", "on"]}
+              formatOption=${(value) =>
+                value === "on" ? t("common.on") : t("common.off")}
+              action=${() =>
+                saveSetting(
+                  "agc_enable",
+                  getDraftValue("agc_enable", currentAgc),
+                )}
+              actionLabel=${t("common.set")}
+            />
+          `}
+        />
+        <${SettingRow}
+          label=${t("audio.led_mode")}
+          helpKey="audio.help.led_mode"
+          controls=${html`
+            <${SelectInput}
+              fieldKey="led_mode"
+              value=${getDraftValue("led_mode", currentLed)}
+              options=${[0, 1, 2]}
+              formatOption=${(value) => {
+                if (Number(value) === 0) return t("audio.led_off");
+                if (Number(value) === 1) return t("audio.led_static");
+                return t("audio.led_level");
+              }}
+              action=${() =>
+                saveSetting(
+                  "led_mode",
+                  getDraftValue("led_mode", currentLed),
+                )}
+              actionLabel=${t("common.set")}
+            />
+          `}
+        />
+        <${SettingRow}
+          label=${t("audio.buffer_size")}
+          helpKey="audio.help.buffer_size"
+          controls=${html`
+            <${SelectInput}
+              fieldKey="buffer"
+              value=${getDraftValue("buffer", currentBuffer)}
+              options=${BUFFER_OPTIONS}
+              formatOption=${(value) => `${value} samples`}
+              action=${() =>
+                saveSetting(
+                  "buffer",
+                  getDraftValue("buffer", currentBuffer),
+                )}
+              actionLabel=${t("common.set")}
+            />
+          `}
+        />
+      </div>
+
+      <div class="page-grid" style="margin-top: 1.6rem;">
+        <div class="summary-tile">
+          <span class="summary-label">${t("audio.latency")}</span>
+          <span class="summary-value">
+            ${audio ? `${formatNumber(audio.latency_ms, 1)} ms` : t("common.loading")}
+          </span>
+        </div>
+        <div class="summary-tile">
+          <span class="summary-label">${t("audio.profile")}</span>
+          <span class="summary-value">
+            ${audio ? profileLabel(audio.buffer_size) : t("common.loading")}
+          </span>
+        </div>
+        <div class="summary-tile">
+          <span class="summary-label">${t("audio.signal_level")}</span>
+          <div class="summary-value" style="font-size: 1.6rem;">
+            ${formatLevel(audio)}
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function ReliabilityCard() {
+  const perf = state.perf;
+  const autoRecovery = perf?.auto_recovery ? "on" : "off";
+  const thresholdMode = perf?.auto_threshold ? "auto" : "manual";
+  const restartThreshold = perf?.restart_threshold_pkt_s ?? "";
+  const scheduledReset = perf?.scheduled_reset ? "on" : "off";
+  const resetHours = perf?.reset_hours ?? "";
+
+  return html`
+    <section class="card">
+      <h2>${t("section.reliability")}</h2>
+      <div class="setting-list">
+        <${SettingRow}
+          label=${t("reliability.auto_recovery")}
+          helpKey="reliability.help.auto_recovery"
+          controls=${html`
+            <${SelectInput}
+              fieldKey="auto_recovery"
+              value=${getDraftValue("auto_recovery", autoRecovery)}
+              options=${["off", "on"]}
+              formatOption=${(value) =>
+                value === "on" ? t("common.on") : t("common.off")}
+              action=${() =>
+                saveSetting(
+                  "auto_recovery",
+                  getDraftValue("auto_recovery", autoRecovery),
+                )}
+              actionLabel=${t("common.set")}
+            />
+          `}
+        />
+        <${SettingRow}
+          label=${t("reliability.threshold_mode")}
+          helpKey="reliability.help.threshold_mode"
+          note=${perf
+            ? t("reliability.recommended_threshold", {
+                value: String(perf.recommended_min_rate),
+              })
+            : ""}
+          controls=${html`
+            <${SelectInput}
+              fieldKey="thr_mode"
+              value=${getDraftValue("thr_mode", thresholdMode)}
+              options=${["auto", "manual"]}
+              formatOption=${(value) =>
+                value === "auto" ? t("common.auto") : t("common.manual")}
+              action=${() =>
+                saveSetting(
+                  "thr_mode",
+                  getDraftValue("thr_mode", thresholdMode),
+                )}
+              actionLabel=${t("common.set")}
+            />
+          `}
+        />
+        ${perf?.auto_threshold
+          ? null
+          : html`
+              <${SettingRow}
+                label=${t("reliability.restart_threshold")}
+                helpKey="reliability.help.restart_threshold"
+                controls=${html`
+                  <${TextInput}
+                    fieldKey="min_rate"
+                    type="number"
+                    min="5"
+                    max="200"
+                    step="1"
+                    unit="pkt/s"
+                    value=${getDraftValue("min_rate", restartThreshold)}
+                    action=${() =>
+                      saveSetting(
+                        "min_rate",
+                        getDraftValue("min_rate", restartThreshold),
+                      )}
+                    actionLabel=${t("common.set")}
+                  />
+                `}
+              />
+            `}
+        <${SettingRow}
+          label=${t("reliability.scheduled_reset")}
+          helpKey="reliability.help.scheduled_reset"
+          controls=${html`
+            <${SelectInput}
+              fieldKey="sched_reset"
+              value=${getDraftValue("sched_reset", scheduledReset)}
+              options=${["off", "on"]}
+              formatOption=${(value) =>
+                value === "on" ? t("common.on") : t("common.off")}
+              action=${() =>
+                saveSetting(
+                  "sched_reset",
+                  getDraftValue("sched_reset", scheduledReset),
+                )}
+              actionLabel=${t("common.set")}
+            />
+          `}
+        />
+        <${SettingRow}
+          label=${t("reliability.reset_hours")}
+          helpKey="reliability.help.reset_hours"
+          controls=${html`
+            <${TextInput}
+              fieldKey="reset_hours"
+              type="number"
+              min="1"
+              max="168"
+              step="1"
+              unit="h"
+              value=${getDraftValue("reset_hours", resetHours)}
+              action=${() =>
+                saveSetting(
+                  "reset_hours",
+                  getDraftValue("reset_hours", resetHours),
+                )}
+              actionLabel=${t("common.set")}
+            />
+          `}
+        />
+      </div>
+    </section>
+  `;
+}
+
+function ThermalCard() {
+  const thermal = state.thermal;
+  const enableValue = thermal?.protection_enabled ? "on" : "off";
+  const limitValue = thermal?.shutdown_c ?? 80;
+  const showLatch = !!thermal?.latched_persist;
+
+  return html`
+    <section class="card">
+      <h2>${t("section.thermal")}</h2>
+      <div class="setting-list">
+        <${SettingRow}
+          label=${t("thermal.overheat_protection")}
+          helpKey="thermal.help.overheat_protection"
+          controls=${html`
+            <${SelectInput}
+              fieldKey="oh_enable"
+              value=${getDraftValue("oh_enable", enableValue)}
+              options=${["off", "on"]}
+              formatOption=${(value) =>
+                value === "on" ? t("common.on") : t("common.off")}
+              action=${() =>
+                saveSetting(
+                  "oh_enable",
+                  getDraftValue("oh_enable", enableValue),
+                )}
+              actionLabel=${t("common.set")}
+            />
+          `}
+        />
+        <${SettingRow}
+          label=${t("thermal.shutdown_limit")}
+          helpKey="thermal.help.shutdown_limit"
+          controls=${html`
+            <${SelectInput}
+              fieldKey="oh_limit"
+              value=${getDraftValue("oh_limit", limitValue)}
+              options=${THERMAL_LIMIT_OPTIONS}
+              formatOption=${(value) => `${value} °C`}
+              action=${() =>
+                saveSetting(
+                  "oh_limit",
+                  getDraftValue("oh_limit", limitValue),
+                )}
+              actionLabel=${t("common.set")}
+            />
+          `}
+        />
+      </div>
+
+      <div style="margin-top: 1.6rem;">
+        <${DataTable}
+          rows=${[
+            [t("thermal.status"), formatThermalStatus(thermal)],
+            [
+              t("thermal.current"),
+              thermal?.current_valid ? formatTemperature(thermal.current_c) : t("common.na"),
+            ],
+            [t("thermal.peak"), formatTemperature(thermal?.max_c)],
+            [
+              t("thermal.cpu"),
+              thermal ? `${thermal.cpu_mhz} MHz` : t("common.loading"),
+            ],
+            [t("thermal.last"), formatThermalLast(thermal)],
+          ]}
+        />
+      </div>
+
+      ${showLatch
+        ? html`
+            <div class="banner error" style="margin-top: 1.6rem;">
+              <p>${t("thermal.latch_notice")}</p>
+              <button class="button button-danger" onClick=${handleThermalClear}>
+                ${t("thermal.clear_latch")}
+              </button>
+            </div>
+          `
+        : null}
+    </section>
+  `;
+}
+
+function AdvancedCard() {
+  const perf = state.perf;
+  const status = state.status;
+  const thermal = state.thermal;
+  const checkInterval = perf?.check_interval_min ?? "";
+  const wifiTx = status?.wifi_tx_dbm ?? -1.0;
+  const hostname = status?.mdns_hostname ?? "";
+  const cpuFreq = thermal?.cpu_mhz ?? 120;
+
+  return html`
+    <section class="card">
+      <h2>${t("section.advanced")}</h2>
+      <div class="setting-list">
+        <${SettingRow}
+          label=${t("advanced.i2s_shift")}
+          controls=${html`<div class="small-note">${t("advanced.i2s_shift_value")}</div>`}
+        />
+        <${SettingRow}
+          label=${t("advanced.check_interval")}
+          helpKey="advanced.help.check_interval"
+          controls=${html`
+            <${TextInput}
+              fieldKey="check_interval"
+              type="number"
+              min="1"
+              max="60"
+              step="1"
+              unit="min"
+              value=${getDraftValue("check_interval", checkInterval)}
+              action=${() =>
+                saveSetting(
+                  "check_interval",
+                  getDraftValue("check_interval", checkInterval),
+                )}
+              actionLabel=${t("common.set")}
+            />
+          `}
+        />
+        <${SettingRow}
+          label=${t("advanced.wifi_tx_power")}
+          helpKey="advanced.help.wifi_tx_power"
+          controls=${html`
+            <${SelectInput}
+              fieldKey="wifi_tx"
+              value=${getDraftValue("wifi_tx", Number(wifiTx).toFixed(1))}
+              options=${WIFI_TX_OPTIONS.map((value) => value.toFixed(1))}
+              formatOption=${(value) => `${value} dBm`}
+              action=${() =>
+                saveSetting(
+                  "wifi_tx",
+                  getDraftValue("wifi_tx", Number(wifiTx).toFixed(1)),
+                )}
+              actionLabel=${t("common.set")}
+            />
+          `}
+        />
+        <${SettingRow}
+          label=${t("advanced.hostname")}
+          helpKey="advanced.help.hostname"
+          controls=${html`
+            <${TextInput}
+              fieldKey="hostname"
+              type="text"
+              maxLength="63"
+              unit=".local"
+              value=${getDraftValue("hostname", hostname)}
+              action=${handleHostnameSave}
+              actionLabel=${t("common.set_reboot")}
+            />
+          `}
+        />
+        <${SettingRow}
+          label=${t("advanced.cpu_frequency")}
+          helpKey="advanced.help.cpu_frequency"
+          controls=${html`
+            <${SelectInput}
+              fieldKey="cpu_freq"
+              value=${getDraftValue("cpu_freq", cpuFreq)}
+              options=${CPU_OPTIONS}
+              formatOption=${(value) => `${value} MHz`}
+              action=${() =>
+                saveSetting(
+                  "cpu_freq",
+                  getDraftValue("cpu_freq", cpuFreq),
+                )}
+              actionLabel=${t("common.set")}
+            />
+          `}
+        />
+      </div>
+    </section>
+  `;
+}
+
+function LogsCard() {
+  return html`
+    <section class="card">
+      <h2>${t("section.logs")}</h2>
+      <p class="card-intro">${t("logs.help")}</p>
+      <div class="logs-panel">
+        <div class="logs-actions">
+          <span class="small-note mono">/api/logs</span>
+          <button class="button button-outline" onClick=${copyLogs}>
+            ${t(state.copyLabelKey)}
+          </button>
+        </div>
+        <pre class="logs-frame mono">${state.logs || ""}</pre>
+      </div>
+    </section>
+  `;
+}
+
+function App() {
+  return html`
+    <main class="app-shell">
+      <${HeroCard} />
+      ${state.error ? html`<div class="banner error">${state.error}</div>` : null}
+      ${state.info ? html`<div class="banner info">${state.info}</div>` : null}
+
+      <div class="page-grid">
+        <${StatusCard} />
+        <${AudioCard} />
+        <${ReliabilityCard} />
+        <${ThermalCard} />
+        <${AdvancedCard} />
+        <${LogsCard} />
+      </div>
+    </main>
+
+    ${state.overlay
+      ? html`
+          <div class="overlay">
+            <div class="card overlay-card">
+              <h2>${t("action.reboot")}</h2>
+              <p>${state.overlay}</p>
+            </div>
+          </div>
+        `
+      : null}
+  `;
+}
+
+async function init() {
+  rerender();
+  await loadAll();
+  pollTimer = window.setInterval(() => {
+    loadAll({ silent: true }).catch(() => {
+      state.error = t("common.connection_error");
+      rerender();
+    });
+  }, 3000);
+}
+
+init();

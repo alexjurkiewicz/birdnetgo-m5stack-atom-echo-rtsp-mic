@@ -17,6 +17,12 @@ def read_text(path):
 
 
 def inline_web_assets(html, css, js):
+    html = re.sub(
+        r"<!--\s*build-remove:start\s*-->.*?<!--\s*build-remove:end\s*-->",
+        "",
+        html,
+        flags=re.DOTALL,
+    )
     html, css_count = re.subn(
         r'<link\s+rel="stylesheet"\s+href="style\.css"\s*/>',
         lambda _: "<style>\n" + css.rstrip() + "\n    </style>",
@@ -24,8 +30,12 @@ def inline_web_assets(html, css, js):
         count=1,
     )
     html, js_count = re.subn(
-        r'<script\s+src="app\.js"></script>',
-        lambda _: "<script>\n" + js.rstrip() + "\n    </script>",
+        r'<script(?:\s+type="module")?\s+src="app\.js"></script>',
+        lambda m: (
+            "<script type=\"module\">\n" + js.rstrip() + "\n    </script>"
+            if "type=\"module\"" in m.group(0)
+            else "<script>\n" + js.rstrip() + "\n    </script>"
+        ),
         html,
         count=1,
     )

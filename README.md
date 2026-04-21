@@ -72,6 +72,22 @@ pio run --target upload      # Flash
 pio device monitor -b 115200 # Serial monitor
 ```
 
+## Web UI Development
+
+```bash
+python3 tools/serve_web_dev.py
+```
+
+Then open `http://127.0.0.1:8000/`.
+
+Override the port explicitly if needed:
+
+```bash
+python3 tools/serve_web_dev.py --port 9000
+```
+
+The dev server serves `src/web/index.html` directly and provides fake in-memory responses for the firmware endpoints under `/api/*`, including settings updates, server actions, reboot simulation, logs, and thermal latch clearing.
+
 ### Dependencies
 ```ini
 lib_deps =
