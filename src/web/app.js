@@ -1616,6 +1616,9 @@ function ReliabilityCard() {
   const restartThreshold = d?.restart_threshold_pkt_s ?? "";
   const scheduledReset = d?.scheduled_reset ? "on" : "off";
   const resetHours = d?.reset_hours ?? "";
+  const protectionEnabled = d?.protection_enabled ? "on" : "off";
+  const shutdownLimit = d?.shutdown_c ?? 80;
+  const showLatch = !!d?.latched_persist;
 
   return html`
     <section class="card">
@@ -1683,21 +1686,6 @@ function ReliabilityCard() {
             />
           `}
         />
-      </div>
-    </section>
-  `;
-}
-
-function ThermalCard() {
-  const d = state.data;
-  const enableValue = d?.protection_enabled ? "on" : "off";
-  const limitValue = d?.shutdown_c ?? 80;
-  const showLatch = !!d?.latched_persist;
-
-  return html`
-    <section class="card">
-      <h2>${t("section.thermal")}</h2>
-      <div class="setting-list">
         <${SettingRow}
           label=${t("thermal.overheat_protection")}
           helpKey="thermal.help.overheat_protection"
@@ -1705,8 +1693,8 @@ function ThermalCard() {
           className="linked-setting"
           controls=${html`
             <${ThermalProtectionSettingControl}
-              enabledValue=${enableValue}
-              limitValue=${limitValue}
+              enabledValue=${protectionEnabled}
+              limitValue=${shutdownLimit}
             />
           `}
         />
@@ -1831,7 +1819,6 @@ function App() {
       <div class="page-grid">
         <${AudioCard} />
         <${ReliabilityCard} />
-        <${ThermalCard} />
         <${AdvancedCard} />
         <${LogsCard} />
       </div>
