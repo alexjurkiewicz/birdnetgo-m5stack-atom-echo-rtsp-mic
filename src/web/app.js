@@ -261,6 +261,10 @@ const I18N_CONFIG = {
       en: "Reset After is available only when Scheduled Reset is enabled.",
       cs: "Možnost Po kolika hodinách je dostupná jen při zapnutém Plánovaném restartu.",
     },
+    "reliability.auto_recovery_group_note": {
+      en: "Threshold Mode and Restart Threshold are available only when Auto Recovery is enabled.",
+      cs: "Režim prahu a prahová hodnota restartu jsou dostupné jen při zapnuté Automatické obnově.",
+    },
     "reliability.recommended_threshold": {
       en: "Recommended threshold: {value} pkt/s",
       cs: "Doporučený práh: {value} pkt/s",
@@ -1330,6 +1334,131 @@ function BufferSizeSettingControl({ bufferValue, sampleRate }) {
   `;
 }
 
+function AutoRecoverySettingControl({ autoRecoveryValue, thresholdModeValue, restartThresholdValue, recommendedRate }) {
+  const [autoRecovery, setAutoRecovery, autoRecoveryChanged] = useLocalSettingValue(autoRecoveryValue);
+  const [thresholdMode, setThresholdMode, thresholdModeChanged] = useLocalSettingValue(thresholdModeValue);
+  const [restartThreshold, setRestartThreshold, restartThresholdChanged] = useLocalSettingValue(restartThresholdValue);
+  const [savingRecovery, setSavingRecovery] = useState(false);
+  const [savingMode, setSavingMode] = useState(false);
+  const [savingThreshold, setSavingThreshold] = useState(false);
+  const autoRecoveryEnabled = isBinaryOn(autoRecovery);
+  const isManualMode = thresholdMode === "manual";
+  const invalidThreshold = isManualMode && !isFieldValid("min_rate", restartThreshold);
+
+  async function submitAutoRecovery(event) {
+    event.preventDefault();
+    if (savingRecovery || !autoRecoveryChanged) return;
+    setSavingRecovery(true);
+    try {
+      await saveSetting("auto_recovery", autoRecoveryEnabled ? "on" : "off");
+    } catch (_error) {
+      // Global error banner is already updated by the save helper.
+    } finally {
+      setSavingRecovery(false);
+    }
+  }
+
+  async function submitThresholdMode(event) {
+    event.preventDefault();
+    if (savingMode || !thresholdModeChanged) return;
+    setSavingMode(true);
+    try {
+      await saveSetting("thr_mode", thresholdMode);
+    } catch (_error) {
+      // Global error banner is already updated by the save helper.
+    } finally {
+      setSavingMode(false);
+    }
+  }
+
+  async function submitRestartThreshold(event) {
+    event.preventDefault();
+    if (savingThreshold || !restartThresholdChanged || invalidThreshold || !isManualMode) return;
+    setSavingThreshold(true);
+    try {
+      await saveSetting("min_rate", restartThreshold);
+    } catch (_error) {
+      // Global error banner is already updated by the save helper.
+    } finally {
+      setSavingThreshold(false);
+    }
+  }
+
+  return html`
+    <div class="control-stack">
+      <form class="field-inline checkbox-inline" onSubmit=${submitAutoRecovery}>
+        <label class="checkbox-control">
+          <input
+            type="checkbox"
+            checked=${autoRecoveryEnabled}
+            disabled=${savingRecovery}
+            onChange=${(event) =>
+              setAutoRecovery(event.currentTarget.checked ? "on" : "off")}
+          />
+          <span class="checkbox-label">
+            ${autoRecoveryEnabled ? t("binary.enabled") : t("binary.disabled")}
+          </span>
+        </label>
+        <${PendingSetButton}
+          disabled=${savingRecovery || !autoRecoveryChanged}
+          label=${t("common.set")}
+        />
+      </form>
+
+      <div class=${`linked-controls ${autoRecoveryEnabled ? "" : "linked-controls-disabled"}`.trim()}>
+        <span class="field-subtitle">${t("reliability.threshold_mode")}</span>
+        <p class="setting-help">${t("reliability.help.threshold_mode")}</p>
+        ${recommendedRate
+          ? html`<p class="setting-help">${t("reliability.recommended_threshold", {
+              value: String(recommendedRate),
+            })}</p>`
+          : null}
+        <form class="field-inline" style="margin-bottom: 0.8rem;" onSubmit=${submitThresholdMode}>
+          <select
+            disabled=${savingMode || !autoRecoveryEnabled}
+            value=${thresholdMode}
+            onChange=${(event) => setThresholdMode(event.currentTarget.value)}
+          >
+            <option value="auto">${t("common.auto")}</option>
+            <option value="manual">${t("common.manual")}</option>
+          </select>
+          <${PendingSetButton}
+            disabled=${savingMode || !autoRecoveryEnabled || !thresholdModeChanged}
+            label=${t("common.set")}
+          />
+        </form>
+
+        ${isManualMode
+          ? html`
+              <div style="margin-top: 0.8rem;">
+                <span class="field-subtitle">${t("reliability.restart_threshold")}</span>
+                <p class="setting-help">${t("reliability.help.restart_threshold")}</p>
+                <form class="field-inline" onSubmit=${submitRestartThreshold}>
+                  <input
+                    class=${invalidThreshold ? "invalid-input" : ""}
+                    type="number"
+                    min="5"
+                    max="200"
+                    step="1"
+                    value=${restartThreshold}
+                    disabled=${savingThreshold || !autoRecoveryEnabled}
+                    aria-invalid=${invalidThreshold ? "true" : "false"}
+                    onInput=${(event) => setRestartThreshold(event.currentTarget.value)}
+                  />
+                  <span class="field-unit">pkt/s</span>
+                  <${PendingSetButton}
+                    disabled=${savingThreshold || invalidThreshold || !autoRecoveryEnabled || !restartThresholdChanged}
+                    label=${t("common.set")}
+                  />
+                </form>
+              </div>
+            `
+          : null}
+      </div>
+    </div>
+  `;
+}
+
 function GainSettingControl({ gainValue, agcValue, agcInfo }) {
   const currentMode = agcValue === "on" ? "auto" : "manual";
   const [mode, setMode, modeChanged] = useLocalSettingValue(currentMode);
@@ -1619,53 +1748,17 @@ function ReliabilityCard() {
         <${SettingRow}
           label=${t("reliability.auto_recovery")}
           helpKey="reliability.help.auto_recovery"
+          note=${t("reliability.auto_recovery_group_note")}
+          className="linked-setting"
           controls=${html`
-            <${CheckboxSettingControl}
-              fieldKey="auto_recovery"
-              currentValue=${autoRecovery}
-              saveLabel=${t("common.set")}
+            <${AutoRecoverySettingControl}
+              autoRecoveryValue=${autoRecovery}
+              thresholdModeValue=${thresholdMode}
+              restartThresholdValue=${restartThreshold}
+              recommendedRate=${d?.recommended_min_rate}
             />
           `}
         />
-        <${SettingRow}
-          label=${t("reliability.threshold_mode")}
-          helpKey="reliability.help.threshold_mode"
-          note=${d
-            ? t("reliability.recommended_threshold", {
-                value: String(d.recommended_min_rate),
-              })
-            : ""}
-          controls=${html`
-            <${SelectSettingControl}
-              fieldKey="thr_mode"
-              currentValue=${thresholdMode}
-              options=${["auto", "manual"]}
-              formatOption=${(value) =>
-                value === "auto" ? t("common.auto") : t("common.manual")}
-              saveLabel=${t("common.set")}
-            />
-          `}
-        />
-        ${d?.auto_threshold
-          ? null
-          : html`
-              <${SettingRow}
-                label=${t("reliability.restart_threshold")}
-                helpKey="reliability.help.restart_threshold"
-                controls=${html`
-                  <${TextSettingControl}
-                    fieldKey="min_rate"
-                    currentValue=${restartThreshold}
-                    type="number"
-                    min="5"
-                    max="200"
-                    step="1"
-                    unit="pkt/s"
-                    saveLabel=${t("common.set")}
-                  />
-                `}
-              />
-            `}
         <${SettingRow}
           label=${t("reliability.scheduled_reset")}
           helpKey="reliability.help.scheduled_reset"
