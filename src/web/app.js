@@ -1314,6 +1314,52 @@ function ThermalProtectionSettingControl({ enabledValue, limitValue }) {
   `;
 }
 
+function BufferSizeSettingControl({ bufferValue, sampleRate }) {
+  const [buffer, setBuffer, bufferChanged] = useLocalSettingValue(bufferValue);
+  const [saving, setSaving] = useState(false);
+
+  const latencyMs =
+    typeof sampleRate === "number" && typeof buffer === "string" && Number(buffer) > 0
+      ? ((Number(buffer) / sampleRate) * 1000).toFixed(1)
+      : "";
+
+  async function onSubmit(event) {
+    event.preventDefault();
+    if (saving || !bufferChanged) return;
+    setSaving(true);
+    try {
+      await saveSetting("buffer", buffer);
+    } catch (_error) {
+      // Global error banner is already updated by the save helper.
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return html`
+    <div class="control-stack">
+      <form class="field-inline" onSubmit=${onSubmit}>
+        <select
+          disabled=${saving}
+          value=${buffer}
+          onChange=${(event) => setBuffer(event.currentTarget.value)}
+        >
+          ${BUFFER_OPTIONS.map(
+            (value) => html`<option value=${value}>${value} samples</option>`
+          )}
+        </select>
+        <${PendingSetButton}
+          disabled=${saving || !bufferChanged}
+          label=${t("common.set")}
+        />
+      </form>
+      ${latencyMs
+        ? html`<p class="setting-help" style="margin-top: 0.8rem;">${latencyMs}ms buffer</p>`
+        : null}
+    </div>
+  `;
+}
+
 function GainSettingControl({ gainValue, agcValue, agcInfo }) {
   const currentMode = agcValue === "on" ? "auto" : "manual";
   const [mode, setMode, modeChanged] = useLocalSettingValue(currentMode);
@@ -1574,24 +1620,15 @@ function AudioCard() {
           label=${t("audio.buffer_size")}
           helpKey="audio.help.buffer_size"
           controls=${html`
-            <${SelectSettingControl}
-              fieldKey="buffer"
-              currentValue=${currentBuffer}
-              options=${BUFFER_OPTIONS}
-              formatOption=${(value) => `${value} samples`}
-              saveLabel=${t("common.set")}
+            <${BufferSizeSettingControl}
+              bufferValue=${currentBuffer}
+              sampleRate=${d?.sample_rate}
             />
           `}
         />
       </div>
 
       <div class="page-grid" style="margin-top: 1.6rem;">
-        <div class="summary-tile">
-          <span class="summary-label">${t("audio.latency")}</span>
-          <span class="summary-value">
-            ${d ? `${formatNumber(d.latency_ms, 1)} ms` : t("common.loading")}
-          </span>
-        </div>
         <div class="summary-tile">
           <span class="summary-label">${t("audio.profile")}</span>
           <span class="summary-value">
