@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""Tail the ESP32 serial console to stdout or a file."""
+import argparse
+import datetime
+import os
+import sys
+import time
+
+try:
+    import serial
+    import serial.tools.list_ports
+except ImportError:
+    print("pyserial not installed. Run: pip install pyserial", file=sys.stderr)
+    sys.exit(1)
+
+BAUD_RATE = 115200
+# VID:PID pairs for common ESP32 USB-serial chips (CH340, CP210x, FTDI)
+_ESP32_VID_PIDS = {"1A867523", "10C4EA60", "04036001", "04036015"}
+
+
+def find_port():
+    ports = list(serial.tools.list_ports.comports())
+    for port in ports:
+        hwid = port.hwid.upper().replace(":", "").replace(" ", "")
+        if any(vp in hwid for vp in _ESP32_VID_PIDS):
+            return port.device
+    for port in ports:
+        dev = port.device.lower()
+        if "usbserial" in dev or "usbmodem" in dev:
+            return port.device
+    return None
+
+
+def daemonize(pid_file):
+    # Validate pid_file path before forking so errors surface to the caller
+    pid_dir = os.path.dirname(os.path.abspath(pid_file))
+    if not os.path.isdir(pid_dir):
+        print(f"PID file directory does not exist: {pid_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    pid = os.fork()
+    if pid > 0:
+        sys.exit(0)
+    os.setsid()
+    pid = os.fork()
+    if pid > 0:
+        sys.exit(0)
+
+    with open(pid_file, "w") as f:
+        f.write(str(os.getpid()))
+
+    devnull = os.open("/dev/null", os.O_RDWR)
+    for fd in (0, 1, 2):
+        os.dup2(devnull, fd)
+    os.close(devnull)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Tail ESP32 serial console")
+    parser.add_argument("output_file", nargs="?", help="Write output to this file")
+    parser.add_argument("--max-time", type=int, metavar="N", help="Exit after N seconds")
+    parser.add_argument("--daemonise-pid-file", metavar="PATH",
+                        help="Run in background and write PID to PATH (requires output_file)")
+    parser.add_argument("--reconnect", action="store_true",
+                        help="Reconnect on disconnect instead of exiting with code 1")
+    parser.add_argument("--timestamp", action="store_true",
+                        help="Prefix each line with a timestamp")
+    parser.add_argument("--port", help="Serial port (auto-detected if omitted)")
+    parser.add_argument("--baud", type=int, default=BAUD_RATE,
+                        help=f"Baud rate (default: {BAUD_RATE})")
+    args = parser.parse_args()
+
+    if not sys.stdin.isatty() and not args.daemonise_pid_file and not args.max_time:
+        parser.error("non-interactive use requires --daemonise-pid-file or --max-time")
+
+    if args.daemonise_pid_file and not args.output_file:
+        parser.error("--daemonise-pid-file requires an output_file argument")
+
+    port = args.port or find_port()
+    if not port:
+        print("No serial port found. Use --port to specify one.", file=sys.stderr)
+        sys.exit(1)
+
+    out_file = open(args.output_file, "w") if args.output_file else None
+
+    if args.daemonise_pid_file:
+        daemonize(args.daemonise_pid_file)
+
+    start_time = time.monotonic()
+
+    def write(text):
+        if out_file:
+            out_file.write(text)
+            out_file.flush()
+        else:
+            sys.stdout.write(text)
+            sys.stdout.flush()
+
+    def deadline_exceeded():
+        return args.max_time and (time.monotonic() - start_time) >= args.max_time
+
+    exit_code = 0
+    try:
+        while True:
+            try:
+                with serial.Serial(port, args.baud, timeout=1) as ser:
+                    write(f"[serial-tail] Connected to {port}\n")
+                    while True:
+                        if deadline_exceeded():
+                            write("[serial-tail] Max time reached\n")
+                            raise SystemExit(0)
+                        data = ser.readline()
+                        if data:
+                            line = data.decode("utf-8", errors="replace")
+                            if args.timestamp:
+                                ts = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+                                line = f"[{ts}] {line}"
+                            write(line)
+            except serial.SerialException as e:
+                write(f"[serial-tail] Disconnected: {e}\n")
+                if not args.reconnect:
+                    exit_code = 1
+                    break
+                if deadline_exceeded():
+                    write("[serial-tail] Max time reached\n")
+                    break
+                write("[serial-tail] Reconnecting...\n")
+                time.sleep(1)
+    except KeyboardInterrupt:
+        exit_code = 0
+    except SystemExit as e:
+        exit_code = e.code or 0
+    finally:
+        if out_file:
+            out_file.close()
+
+    sys.exit(exit_code)
+
+
+if __name__ == "__main__":
+    main()

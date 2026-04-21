@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <WiFiManager.h>
+#include <ArduinoJson.h>
 #include "WebUI.h"
 #include "webui_html.h"
 
@@ -115,12 +116,6 @@ void webui_pushLog(const String &line) {
     portEXIT_CRITICAL(&logMux);
 }
 
-static String jsonEscape(const String &s) {
-    String o; o.reserve(s.length()+8);
-    for (size_t i=0;i<s.length();++i){char c=s[i]; if(c=='"'||c=='\\'){o+='\\';o+=c;} else if(c=='\n'){o+="\\n";} else {o+=c;}}
-    return o;
-}
-
 static String profileName(uint16_t buf) {
     // Server-side fallback (English). UI localizes on client by buffer size.
     if (buf <= 256) return F("Ultra-Low Latency (Higher CPU, May have dropouts)");
@@ -143,104 +138,96 @@ static void httpIndex() {
     web.sendContent("", 0);
 }
 
-// HTTP handlery
-
-static void httpStatus() {
+// Single state endpoint — returns all device state as a flat JSON object
+static void httpState() {
     lastNetworkActivity = millis();
-    unsigned long uptimeSeconds = (millis() - bootTime) / 1000;
-    String uptimeStr = formatUptime(uptimeSeconds);
-    unsigned long runtime = millis() - lastStatsReset;
-    uint32_t currentRate = (rtspSenderTaskHandle != NULL && runtime > 1000) ? (audioPacketsSent * 1000) / runtime : 0;
-    String json = "{";
-    json += "\"fw_version\":\"" + String(FW_VERSION_STR) + "\",";
-    json += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
-    json += "\"wifi_rssi\":" + String(WiFi.RSSI()) + ",";
-    json += "\"wifi_tx_dbm\":" + String(wifiPowerLevelToDbm(currentWifiPowerLevel),1) + ",";
-    json += "\"free_heap_kb\":" + String(ESP.getFreeHeap()/1024) + ",";
-    json += "\"min_free_heap_kb\":" + String(minFreeHeap/1024) + ",";
-    json += "\"uptime\":\"" + uptimeStr + "\",";
-    json += "\"rtsp_server_enabled\":" + String(rtspServerEnabled?"true":"false") + ",";
-    if (rtspClient && rtspClient.connected()) json += "\"client\":\"" + rtspClient.remoteIP().toString() + "\","; else json += "\"client\":\"\",";
-    json += "\"streaming\":" + String(rtspSenderTaskHandle != NULL ? "true" : "false") + ",";
-    if (lastTemperatureValid) json += "\"temp_c\":" + String(lastTemperatureC, 1) + ",";
-    json += "\"dropped_packets\":" + String(audioPacketsDropped) + ",";
-    json += "\"current_rate_pkt_s\":" + String(currentRate) + ",";
-    json += "\"last_rtsp_connect\":\"" + jsonEscape(formatSince(lastRtspClientConnectMs)) + "\",";
-    json += "\"last_stream_start\":\"" + jsonEscape(formatSince(lastRtspPlayMs)) + "\",";
-    json += "\"mdns_hostname\":\"" + jsonEscape(mdnsHostname) + "\"";
-    json += "}";
-    apiSendJSON(json);
-}
-
-static void httpAudioStatus() {
-    float latency_ms = (float)currentBufferSize / currentSampleRate * 1000.0f;
-    String json = "{";
-    json += "\"sample_rate\":" + String(currentSampleRate) + ",";
-    json += "\"gain\":" + String(currentGainFactor,2) + ",";
-    json += "\"buffer_size\":" + String(currentBufferSize) + ",";
-    json += "\"i2s_shift\":" + String(i2sShiftBits) + ",";
-    json += "\"latency_ms\":" + String(latency_ms,1) + ",";
     extern bool highpassEnabled; extern uint16_t highpassCutoffHz;
-    json += "\"profile\":\"" + jsonEscape(profileName(currentBufferSize)) + "\",";
-    json += "\"dc_blocker_enable\":" + String(dcBlockerEnabled?"true":"false") + ",";
-    json += "\"hp_enable\":" + String(highpassEnabled?"true":"false") + ",";
-    json += "\"hp_cutoff_hz\":" + String((uint32_t)highpassCutoffHz) + ",";
-    json += "\"agc_enable\":" + String(agcEnabled?"true":"false") + ",";
-    json += "\"agc_multiplier\":" + String(agcMultiplier, 2) + ",";
+
+    unsigned long uptimeSeconds = (millis() - bootTime) / 1000;
+    unsigned long runtime = millis() - lastStatsReset;
+    uint32_t currentRate = (rtspSenderTaskHandle != NULL && runtime > 1000)
+                           ? (audioPacketsSent * 1000) / runtime : 0;
+    float latency_ms    = (float)currentBufferSize / currentSampleRate * 1000.0f;
+    uint16_t p          = (peakHoldAbs16 > 0) ? peakHoldAbs16 : lastPeakAbs16;
+    float peak_pct      = (p <= 0) ? 0.0f : (100.0f * (float)p / 32767.0f);
+    float peak_dbfs     = (p <= 0) ? -90.0f : (20.0f * log10f((float)p / 32767.0f));
     float effectiveGain = agcEnabled ? (currentGainFactor * agcMultiplier) : currentGainFactor;
-    json += "\"effective_gain\":" + String(effectiveGain, 2) + ",";
-    // Metering/clipping
-    uint16_t p = (peakHoldAbs16 > 0) ? peakHoldAbs16 : lastPeakAbs16;
-    float peak_pct = (p <= 0) ? 0.0f : (100.0f * (float)p / 32767.0f);
-    float peak_dbfs = (p <= 0) ? -90.0f : (20.0f * log10f((float)p / 32767.0f));
-    json += "\"peak_pct\":" + String(peak_pct,1) + ",";
-    json += "\"peak_dbfs\":" + String(peak_dbfs,1) + ",";
-    json += "\"clip\":" + String(audioClippedLastBlock?"true":"false") + ",";
-    json += "\"clip_count\":" + String(audioClipCount) + ",";
-    json += "\"led_mode\":" + String(ledMode);
-    json += "}";
-    apiSendJSON(json);
-}
+    bool manualRequired = overheatLatched
+                          || (!rtspServerEnabled && overheatProtectionEnabled && overheatTripTemp > 0.0f);
 
-static void httpPerfStatus() {
-    String json = "{";
-    json += "\"restart_threshold_pkt_s\":" + String(minAcceptableRate) + ",";
-    json += "\"check_interval_min\":" + String(performanceCheckInterval) + ",";
-    json += "\"auto_recovery\":" + String(autoRecoveryEnabled?"true":"false") + ",";
-    json += "\"auto_threshold\":" + String(autoThresholdEnabled?"true":"false") + ",";
-    json += "\"recommended_min_rate\":" + String(computeRecommendedMinRate()) + ",";
-    json += "\"scheduled_reset\":" + String(scheduledResetEnabled?"true":"false") + ",";
-    json += "\"reset_hours\":" + String(resetIntervalHours) + "}";
-    apiSendJSON(json);
-}
+    JsonDocument doc;
+    doc["fw_version"]              = FW_VERSION_STR;
+    doc["ip"]                      = WiFi.localIP().toString();
+    doc["wifi_rssi"]               = WiFi.RSSI();
+    doc["wifi_tx_dbm"]             = wifiPowerLevelToDbm(currentWifiPowerLevel);
+    doc["free_heap_kb"]            = ESP.getFreeHeap() / 1024;
+    doc["min_free_heap_kb"]        = minFreeHeap / 1024;
+    doc["uptime"]                  = formatUptime(uptimeSeconds);
+    doc["rtsp_server_enabled"]     = rtspServerEnabled;
+    doc["client"]                  = (rtspClient && rtspClient.connected())
+                                     ? rtspClient.remoteIP().toString() : String("");
+    doc["streaming"]               = (rtspSenderTaskHandle != NULL);
+    doc["dropped_packets"]         = audioPacketsDropped;
+    doc["current_rate_pkt_s"]      = currentRate;
+    doc["last_rtsp_connect"]       = formatSince(lastRtspClientConnectMs);
+    doc["last_stream_start"]       = formatSince(lastRtspPlayMs);
+    doc["mdns_hostname"]           = mdnsHostname;
+    doc["sample_rate"]             = currentSampleRate;
+    doc["gain"]                    = currentGainFactor;
+    doc["buffer_size"]             = currentBufferSize;
+    doc["i2s_shift"]               = i2sShiftBits;
+    doc["latency_ms"]              = latency_ms;
+    doc["profile"]                 = profileName(currentBufferSize);
+    doc["dc_blocker_enable"]       = dcBlockerEnabled;
+    doc["hp_enable"]               = highpassEnabled;
+    doc["hp_cutoff_hz"]            = highpassCutoffHz;
+    doc["agc_enable"]              = agcEnabled;
+    doc["agc_multiplier"]          = agcMultiplier;
+    doc["effective_gain"]          = effectiveGain;
+    doc["peak_pct"]                = peak_pct;
+    doc["peak_dbfs"]               = peak_dbfs;
+    doc["clip"]                    = audioClippedLastBlock;
+    doc["clip_count"]              = audioClipCount;
+    doc["led_mode"]                = ledMode;
+    doc["restart_threshold_pkt_s"] = minAcceptableRate;
+    doc["check_interval_min"]      = performanceCheckInterval;
+    doc["auto_recovery"]           = autoRecoveryEnabled;
+    doc["auto_threshold"]          = autoThresholdEnabled;
+    doc["recommended_min_rate"]    = computeRecommendedMinRate();
+    doc["scheduled_reset"]         = scheduledResetEnabled;
+    doc["reset_hours"]             = resetIntervalHours;
+    if (lastTemperatureValid) { doc["current_c"] = lastTemperatureC; } else { doc["current_c"] = nullptr; }
+    doc["current_valid"]           = lastTemperatureValid;
+    doc["max_c"]                   = maxTemperature;
+    doc["cpu_mhz"]                 = getCpuFrequencyMhz();
+    doc["protection_enabled"]      = overheatProtectionEnabled;
+    doc["shutdown_c"]              = (int)overheatShutdownC;
+    doc["latched"]                 = overheatLockoutActive;
+    doc["latched_persist"]         = overheatLatched;
+    doc["sensor_fault"]            = overheatSensorFault;
+    doc["last_trip_c"]             = overheatTripTemp;
+    doc["last_reason"]             = overheatLastReason;
+    doc["last_trip_ts"]            = overheatLastTimestamp;
+    doc["last_trip_since"]         = (overheatTripTemp > 0.0f && overheatTriggeredAt != 0)
+                                     ? formatSince(overheatTriggeredAt) : String("");
+    doc["manual_restart"]          = manualRequired;
 
-static void httpThermal() {
-    String since = "";
-    if (overheatTripTemp > 0.0f && overheatTriggeredAt != 0) {
-        since = formatSince(overheatTriggeredAt);
+    // Snapshot log indices under spinlock, then read entries without holding it.
+    // The writer only ever touches logBuffer[logHead] (the next slot), so the
+    // committed entries we iterate over are safe to read lock-free.
+    portENTER_CRITICAL(&logMux);
+    size_t snapCount = logCount;
+    size_t snapHead  = logHead;
+    portEXIT_CRITICAL(&logMux);
+    JsonArray logs = doc["logs"].to<JsonArray>();
+    for (size_t i = 0; i < snapCount; i++) {
+        size_t idx = (snapHead + LOG_CAP - snapCount + i) % LOG_CAP;
+        logs.add(logBuffer[idx]);
     }
-    bool manualRequired = overheatLatched || (!rtspServerEnabled && overheatProtectionEnabled && overheatTripTemp > 0.0f);
-    String json = "{";
-    if (lastTemperatureValid) {
-        json += "\"current_c\":" + String(lastTemperatureC,1) + ",";
-    } else {
-        json += "\"current_c\":null,";
-    }
-    json += "\"current_valid\":" + String(lastTemperatureValid?"true":"false") + ",";
-    json += "\"max_c\":" + String(maxTemperature,1) + ",";
-    json += "\"cpu_mhz\":" + String(getCpuFrequencyMhz()) + ",";
-    json += "\"protection_enabled\":" + String(overheatProtectionEnabled?"true":"false") + ",";
-    json += "\"shutdown_c\":" + String(overheatShutdownC,0) + ",";
-    json += "\"latched\":" + String(overheatLockoutActive?"true":"false") + ",";
-    json += "\"latched_persist\":" + String(overheatLatched?"true":"false") + ",";
-    json += "\"sensor_fault\":" + String(overheatSensorFault?"true":"false") + ",";
-    json += "\"last_trip_c\":" + String(overheatTripTemp,1) + ",";
-    json += "\"last_reason\":\"" + jsonEscape(overheatLastReason) + "\",";
-    json += "\"last_trip_ts\":\"" + jsonEscape(overheatLastTimestamp) + "\",";
-    json += "\"last_trip_since\":\"" + jsonEscape(since) + "\",";
-    json += "\"manual_restart\":" + String(manualRequired?"true":"false");
-    json += "}";
-    apiSendJSON(json);
+
+    String out;
+    serializeJson(doc, out);
+    apiSendJSON(out);
 }
 
 static void httpThermalClear() {
@@ -262,15 +249,6 @@ static void httpThermalClear() {
     } else {
         apiSendJSON(F("{\"ok\":false}"));
     }
-}
-
-static void httpLogs() {
-    String out;
-    for (size_t i=0;i<logCount;i++){
-        size_t idx = (logHead + LOG_CAP - logCount + i) % LOG_CAP;
-        out += logBuffer[idx]; out += '\n';
-    }
-    web.send(200, "text/plain; charset=utf-8", out.length() ? out : String("\n"));
 }
 
 static void httpActionServerStart(){
@@ -343,12 +321,8 @@ static void httpSet() {
 
 void webui_begin() {
     web.on("/", httpIndex);
-    web.on("/api/status", httpStatus);
-    web.on("/api/audio_status", httpAudioStatus);
-    web.on("/api/perf_status", httpPerfStatus);
-    web.on("/api/thermal", httpThermal);
+    web.on("/api/state", httpState);
     web.on("/api/thermal/clear", HTTP_POST, httpThermalClear);
-    web.on("/api/logs", httpLogs);
     web.on("/api/action/server_start", httpActionServerStart);
     web.on("/api/action/server_stop", httpActionServerStop);
     web.on("/api/action/reset_i2s", httpActionResetI2S);

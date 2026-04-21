@@ -1,0 +1,338 @@
+#!/usr/bin/env python3
+"""
+ESP32 RTSP Mic — failure monitor.
+
+Watches serial output (filtered) and HTTP health in parallel,
+writing a compact event log that captures only state changes and
+interesting events — no periodic noise.
+
+Usage:
+    ./monitor                        # start monitoring immediately
+    ./monitor --restart              # POST /api/reboot first, then monitor
+    ./monitor --output events.log    # also write to file (stdout always shown)
+    ./monitor --restart --output events.log
+
+The log omits:
+  - Periodic Core0 RSSI/temp/heap lines
+  - Periodic Core1 Sent= stats
+  - Periodic [Heap] checks
+  - Boot ROM noise (ets Jun, rst:, load:, configsip:, etc.)
+  - WiFiManager wm: lines
+  - Arduino WiFi event spam ([D][WiFiGeneric] Arduino Event: N)
+
+It keeps:
+  - All RTSP lifecycle events (connect, play, stop, teardown)
+  - Write deadline / write failure messages
+  - WiFi disconnect/reconnect with reason codes
+  - Network zombie detection
+  - Thermal events
+  - Any [E] error lines from the ESP32 framework
+  - HTTP health transitions (ok→fail and fail→ok, with timing)
+"""
+
+import argparse
+import datetime
+import queue
+import re
+import sys
+import threading
+import time
+
+try:
+    import serial
+    import serial.tools.list_ports
+except ImportError:
+    print("pyserial not installed. Run: pip install pyserial", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    import urllib.request
+    import urllib.error
+except ImportError:
+    pass
+
+BAUD_RATE = 115200
+ESP32_IP = "birdnet-atomecho.local"
+HTTP_URL = f"http://{ESP32_IP}/api/status"
+HTTP_INTERVAL_NORMAL = 5      # seconds between polls in steady state
+HTTP_INTERVAL_FAILURE = 1     # seconds between polls when HTTP is failing
+HTTP_TIMEOUT = 4              # request timeout
+
+# --- Serial filter -----------------------------------------------------------
+
+# Lines that match ANY of these patterns are suppressed entirely.
+_SUPPRESS_RE = [re.compile(r) for r in [
+    r"\[Core0\] RSSI=",                    # periodic status
+    r"\[Core1\] Sent=",                    # periodic Core1 stats
+    r"\[Heap\] Current:",                  # heap check
+    r"^\s*$",                              # blank lines
+    r"^ets Jun ",                          # boot ROM
+    r"^rst:0x",                            # reset reason line
+    r"^configsip:",                        # flash config
+    r"^clk_drv:",                          # clock config
+    r"^mode:DIO",                          # flash mode
+    r"^load:0x",                           # bootloader load
+    r"^entry 0x",                          # entry point
+    r"\*wm:",                              # WiFiManager
+    r"\[D\]\[WiFiGeneric",                 # WiFi event spam
+    r"\[W\]\[WiFiGeneric.*_eventCallback.*Arduino Event: [0-9]+ - STA_(START|STOP|CONNECTED|GOT_IP)",
+    r"PLL: \d+ / \d+ = \d+ Mhz",         # CPU PLL line
+    r"M5Atom initializing",
+    r"Random seed initialized",
+    r"Audio buffers will be allocated",
+    r"Settings loaded",
+    r"Loading settings\.\.\.",
+    r"I2S driver ready",
+    r"Dual-core audio ready",
+    r"Setting up I2S driver",
+    r"Updating highpass coefficients",
+    r"Highpass coeff",
+    r"WiFi connected:",
+    r"Waiting for NTP",
+    r"NTP sync",
+    r"mDNS:",
+    r"Web UI:",
+    r"MASK:.*GW:",
+    r"AutoConnect: SUCCESS",
+    r"STA IP Address:",
+    r"Connecting to SAVED AP",
+    r"APB: \d+ Hz",
+]]
+
+# Lines that match ANY of these are always kept (overrides suppress list).
+_KEEP_RE = [
+    re.compile(r, re.IGNORECASE) for r in [
+        r"write.*deadline",
+        r"write.*fail",
+        r"consecutive write",
+        r"WiFiClient\.cpp",
+        r"network zombie",
+        r"RTSP client",
+        r"STREAMING (STARTED|STOPPED)",
+        r"stream.*(stop|start|clean)",
+        r"requestStreamStop",
+        r"Audio pipeline task",
+        r"THERMAL",
+        r"overheat",
+        r"BEACON_TIMEOUT",
+        r"STA_DISCONNECTED",
+        r"Reconnect",
+        r"RTSP server (ready|paused)",
+        r"\[E\]\[",
+        r"\[W\]\[WiFiGeneric.*Reason:",
+        r"WiFi disconnected",
+        r"I2S ready",                          # keep after restarts
+        r"CPU frequency set",
+    ]
+]
+
+
+def _is_interesting(line: str) -> bool:
+    """Return True if this serial line should appear in the event log."""
+    stripped = line.strip()
+
+    # Always keep lines that match a keep pattern.
+    for pat in _KEEP_RE:
+        if pat.search(stripped):
+            return True
+
+    # Suppress noisy periodic lines.
+    for pat in _SUPPRESS_RE:
+        if pat.search(stripped):
+            return False
+
+    # Keep everything else that wasn't explicitly suppressed.
+    return True
+
+
+# --- Timestamp ---------------------------------------------------------------
+
+def _ts() -> str:
+    return datetime.datetime.now().strftime("%H:%M:%S")
+
+
+# --- Output ------------------------------------------------------------------
+
+_output_lock = threading.Lock()
+_out_file = None
+
+
+def emit(msg: str):
+    """Write a timestamped event line to stdout and optionally a file."""
+    line = f"[{_ts()}] {msg}\n"
+    with _output_lock:
+        sys.stdout.write(line)
+        sys.stdout.flush()
+        if _out_file:
+            _out_file.write(line)
+            _out_file.flush()
+
+
+# --- Serial thread -----------------------------------------------------------
+
+def find_port():
+    _ESP32_VID_PIDS = {"1A867523", "10C4EA60", "04036001", "04036015"}
+    ports = list(serial.tools.list_ports.comports())
+    for port in ports:
+        hwid = port.hwid.upper().replace(":", "").replace(" ", "")
+        if any(vp in hwid for vp in _ESP32_VID_PIDS):
+            return port.device
+    for port in ports:
+        dev = port.device.lower()
+        if "usbserial" in dev or "usbmodem" in dev:
+            return port.device
+    return None
+
+
+def serial_thread(port: str, stop_evt: threading.Event):
+    while not stop_evt.is_set():
+        try:
+            with serial.Serial(port, BAUD_RATE, timeout=1) as ser:
+                emit(f"SERIAL connected to {port}")
+                while not stop_evt.is_set():
+                    data = ser.readline()
+                    if not data:
+                        continue
+                    line = data.decode("utf-8", errors="replace").rstrip()
+                    if _is_interesting(line):
+                        # Strip the ESP32 timestamp prefix if present so our
+                        # wall-clock timestamp is the authoritative one.
+                        clean = re.sub(r"^\[\d{2}:\d{2}:\d{2}\]\s*", "", line).strip()
+                        if clean:
+                            emit(f"SERIAL  {clean}")
+        except serial.SerialException as e:
+            if not stop_evt.is_set():
+                emit(f"SERIAL disconnected: {e} — reconnecting…")
+                time.sleep(2)
+
+
+# --- HTTP health thread -------------------------------------------------------
+
+def http_thread(stop_evt: threading.Event):
+    ok = None          # None = unknown, True = up, False = down
+    fail_start = None  # wall time of first failure in current run
+    last_ok_ts = None  # wall time of last success
+
+    while not stop_evt.is_set():
+        interval = HTTP_INTERVAL_FAILURE if ok is False else HTTP_INTERVAL_NORMAL
+        deadline = time.monotonic() + interval
+
+        try:
+            req = urllib.request.urlopen(HTTP_URL, timeout=HTTP_TIMEOUT)
+            body = req.read().decode()
+            now = time.monotonic()
+
+            if ok is not True:
+                if ok is False:
+                    downtime = now - fail_start
+                    emit(f"HTTP    UP  (was down {downtime:.0f}s)")
+                else:
+                    emit(f"HTTP    UP  (first response)")
+                ok = True
+                fail_start = None
+
+            last_ok_ts = now
+
+            # Extract a few key fields for context on state transitions.
+            m_stream = re.search(r'"streaming":(true|false)', body)
+            m_drop   = re.search(r'"dropped_packets":(\d+)', body)
+            streaming = m_stream.group(1) if m_stream else "?"
+            dropped   = m_drop.group(1) if m_drop else "?"
+            # Only emit a periodic heartbeat every 5 minutes so the log stays quiet.
+            # (State-change events are emitted immediately above.)
+
+        except Exception as exc:
+            now = time.monotonic()
+            if ok is not False:
+                since_ok = f", last ok {now - last_ok_ts:.0f}s ago" if last_ok_ts else ""
+                emit(f"HTTP    FAIL — {type(exc).__name__}: {exc}{since_ok}")
+                ok = False
+                fail_start = now
+            # Don't spam on every failure poll — already logged on transition.
+
+        # Sleep until next poll, checking stop_evt frequently.
+        while time.monotonic() < deadline and not stop_evt.is_set():
+            time.sleep(0.2)
+
+
+# --- Restart -----------------------------------------------------------------
+
+def restart_device(port: str):
+    """Reset ESP32 via serial DTR/RTS pulse. Works even when HTTP is down."""
+    emit(f"ACTION  Resetting ESP32 via serial ({port})…")
+    try:
+        with serial.Serial(port, BAUD_RATE, timeout=1) as ser:
+            ser.dtr = False   # GPIO0 high = normal boot mode (not flash)
+            ser.rts = True    # EN low = hold in reset
+            time.sleep(0.15)
+            ser.rts = False   # EN high = release reset, boot
+            time.sleep(0.1)
+        emit("ACTION  Reset pulse sent — waiting for boot…")
+    except Exception as e:
+        emit(f"ACTION  Serial reset failed: {e}")
+        return
+
+    # Give the device a moment to start booting before we poll HTTP.
+    time.sleep(4)
+    for _ in range(30):
+        try:
+            urllib.request.urlopen(HTTP_URL, timeout=2)
+            emit("ACTION  Device is back online")
+            return
+        except Exception:
+            time.sleep(2)
+
+    emit("ACTION  WARNING: device did not come back within ~65s")
+
+
+# --- Main --------------------------------------------------------------------
+
+def main():
+    global _out_file
+
+    parser = argparse.ArgumentParser(description="ESP32 failure monitor")
+    parser.add_argument("--restart", action="store_true",
+                        help="Reset the device via serial DTR/RTS before monitoring (works when HTTP is down)")
+    parser.add_argument("--output", metavar="FILE",
+                        help="Also write event log to FILE")
+    parser.add_argument("--port", help="Serial port (auto-detected if omitted)")
+    args = parser.parse_args()
+
+    port = args.port or find_port()
+    if not port:
+        print("No serial port found. Use --port to specify one.", file=sys.stderr)
+        sys.exit(1)
+
+    if args.output:
+        _out_file = open(args.output, "w")
+
+    if args.restart:
+        restart_device(port)
+
+    emit(f"MONITOR starting — serial={port}, http={HTTP_URL}")
+    emit(f"MONITOR poll interval: {HTTP_INTERVAL_NORMAL}s normal / {HTTP_INTERVAL_FAILURE}s on failure")
+
+    stop_evt = threading.Event()
+    threads = [
+        threading.Thread(target=serial_thread, args=(port, stop_evt), daemon=True),
+        threading.Thread(target=http_thread, args=(stop_evt,), daemon=True),
+    ]
+    for t in threads:
+        t.start()
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        emit("MONITOR stopping")
+        stop_evt.set()
+
+    for t in threads:
+        t.join(timeout=3)
+
+    if _out_file:
+        _out_file.close()
+
+
+if __name__ == "__main__":
+    main()

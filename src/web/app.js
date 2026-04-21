@@ -384,11 +384,7 @@ const state = {
   info: "",
   overlay: "",
   copyLabelKey: "common.copy_logs",
-  status: null,
-  audio: null,
-  perf: null,
-  thermal: null,
-  logs: "",
+  data: null,
 };
 
 let reconnectTimer = null;
@@ -536,50 +532,20 @@ async function apiJson(path, options = {}) {
   return data;
 }
 
-async function apiText(path, options = {}) {
-  const response = await fetch(path, {
-    cache: "no-store",
-    ...options,
-  });
-  if (!response.ok) {
-    throw new Error(response.statusText || path);
-  }
-  return response.text();
-}
-
 async function loadAll({ silent = false } = {}) {
   if (!silent) {
     state.loading = true;
     rerender();
   }
 
-  const results = await Promise.allSettled([
-    apiJson("/api/status"),
-    apiJson("/api/audio_status"),
-    apiJson("/api/perf_status"),
-    apiJson("/api/thermal"),
-    apiText("/api/logs"),
-  ]);
-
-  let hadError = false;
-
-  if (results[0].status === "fulfilled") state.status = results[0].value;
-  else hadError = true;
-
-  if (results[1].status === "fulfilled") state.audio = results[1].value;
-  else hadError = true;
-
-  if (results[2].status === "fulfilled") state.perf = results[2].value;
-  else hadError = true;
-
-  if (results[3].status === "fulfilled") state.thermal = results[3].value;
-  else hadError = true;
-
-  if (results[4].status === "fulfilled") state.logs = results[4].value;
-  else hadError = true;
+  try {
+    state.data = await apiJson("/api/state");
+    state.error = "";
+  } catch (_error) {
+    state.error = t("common.refresh_error");
+  }
 
   state.loading = false;
-  state.error = hadError ? t("common.refresh_error") : "";
   rerender();
 }
 
@@ -621,7 +587,7 @@ function startReconnectLoop() {
 
   const tick = async () => {
     try {
-      await apiJson("/api/status");
+      await apiJson("/api/state");
       window.location.reload();
     } catch (_error) {
       reconnectTimer = window.setTimeout(tick, 2000);
@@ -664,7 +630,7 @@ async function handleWifiSetup() {
 }
 
 async function handleHostnameSave(_fieldKey, rawValue) {
-  const value = String(rawValue ?? state.status?.mdns_hostname ?? "")
+  const value = String(rawValue ?? state.data?.mdns_hostname ?? "")
     .trim()
     .replace(/\s+/g, "");
   if (!value) return;
@@ -702,7 +668,7 @@ async function handleThermalClear() {
 }
 
 async function copyLogs() {
-  const text = state.logs || "";
+  const text = state.data?.logs?.join("\n") ?? "";
   if (!text) return;
 
   try {
@@ -823,71 +789,67 @@ function formatThermalLast(thermal) {
 }
 
 function summaryTiles() {
-  const status = state.status;
-  const thermal = state.thermal;
+  const d = state.data;
   return [
     {
       label: t("app.summary.server"),
-      value: status
-        ? status.rtsp_server_enabled
+      value: d
+        ? d.rtsp_server_enabled
           ? t("status.server_enabled")
           : t("status.server_disabled")
         : t("common.loading"),
     },
     {
       label: t("app.summary.streaming"),
-      value: status
-        ? status.streaming
+      value: d
+        ? d.streaming
           ? t("status.streaming_yes")
           : t("status.streaming_no")
         : t("common.loading"),
     },
     {
       label: t("app.summary.packet_rate"),
-      value: status ? `${status.current_rate_pkt_s} pkt/s` : t("common.loading"),
+      value: d ? `${d.current_rate_pkt_s} pkt/s` : t("common.loading"),
     },
     {
       label: t("app.summary.temperature"),
-      value:
-        thermal && thermal.current_valid
-          ? formatTemperature(thermal.current_c)
-          : t("common.na"),
+      value: d?.current_valid ? formatTemperature(d.current_c) : t("common.na"),
     },
   ];
 }
 
 function renderStatusRows() {
-  const status = state.status;
+  const d = state.data;
   return [
-    [t("status.ip"), status?.ip || t("common.loading")],
-    [t("status.wifi_rssi"), status ? `${status.wifi_rssi} dBm` : t("common.loading")],
+    [t("status.ip"), d?.ip || t("common.loading")],
+    [t("status.wifi_rssi"), d ? `${d.wifi_rssi} dBm` : t("common.loading")],
     [
       t("status.wifi_tx"),
-      status ? `${formatNumber(status.wifi_tx_dbm, 1)} dBm` : t("common.loading"),
+      d ? `${formatNumber(d.wifi_tx_dbm, 1)} dBm` : t("common.loading"),
     ],
     [
       t("status.heap"),
-      status
-        ? `${status.free_heap_kb} KB (${status.min_free_heap_kb} KB)`
+      d
+        ? `${d.free_heap_kb} KB (${d.min_free_heap_kb} KB)`
         : t("common.loading"),
     ],
-    [t("status.uptime"), status?.uptime || t("common.loading")],
+    [t("status.uptime"), d?.uptime || t("common.loading")],
     [
       t("status.rtsp_server"),
-      status
+      d
         ? boolPill(
-            status.rtsp_server_enabled,
+            d.rtsp_server_enabled,
             t("status.server_enabled"),
             t("status.server_disabled"),
           )
         : renderPill(t("common.loading"), "neutral"),
     ],
-    [t("status.client"), status?.client || t("common.waiting")],
+    [t("status.client"), d?.client || t("common.waiting")],
     [
       t("status.streaming"),
-      status
+      d
         ? boolPill(
-            status.streaming,
+            d.streaming,
             t("status.streaming_yes"),
             t("status.streaming_no"),
           )
@@ -895,10 +857,10 @@ function renderStatusRows() {
     ],
     [
       t("status.packet_rate"),
-      status ? `${status.current_rate_pkt_s} pkt/s` : t("common.loading"),
+      d ? `${d.current_rate_pkt_s} pkt/s` : t("common.loading"),
     ],
-    [t("status.last_connect"), status?.last_rtsp_connect || t("common.waiting")],
-    [t("status.last_play"), status?.last_stream_start || t("common.waiting")],
+    [t("status.last_connect"), d?.last_rtsp_connect || t("common.waiting")],
+    [t("status.last_play"), d?.last_stream_start || t("common.waiting")],
   ];
 }
 
@@ -1268,9 +1230,9 @@ function GainSettingControl({ gainValue, agcValue, agcInfo }) {
 }
 
 function HeroCard() {
-  const status = state.status;
-  const rtspUrl = status?.mdns_hostname
-    ? `rtsp://${status.mdns_hostname}.local:8554/audio`
+  const d = state.data;
+  const rtspUrl = d?.mdns_hostname
+    ? `rtsp://${d.mdns_hostname}.local:8554/audio`
     : t("common.loading");
 
   return html`
@@ -1282,7 +1244,7 @@ function HeroCard() {
           <p class="card-intro">${t("app.subtitle")}</p>
           <div class="hero-meta">
             <span class="firmware-badge">
-              ${status?.fw_version ? `Version ${status.fw_version}` : t("common.loading")}
+              ${d?.fw_version ? `Version ${d.fw_version}` : t("common.loading")}
             </span>
           </div>
           <div class="hero-url">
@@ -1327,14 +1289,14 @@ function HeroCard() {
 
       <div class="action-bar">
         <button
-          disabled=${!!status?.rtsp_server_enabled}
+          disabled=${!!d?.rtsp_server_enabled}
           onClick=${() => runAction("server_start")}
         >
           ${t("action.server_start")}
         </button>
         <button
           class="button button-outline"
-          disabled=${status ? !status.rtsp_server_enabled : true}
+          disabled=${d ? !d.rtsp_server_enabled : true}
           onClick=${() => runAction("server_stop")}
         >
           ${t("action.server_stop")}
@@ -1361,22 +1323,22 @@ function HeroCard() {
 }
 
 function AudioCard() {
-  const audio = state.audio;
-  const currentRate = audio?.sample_rate ?? "";
+  const d = state.data;
+  const currentRate = d?.sample_rate ?? "";
   const currentGain =
-    typeof audio?.gain === "number" ? audio.gain.toFixed(2) : "";
-  const currentDcBlocker = audio?.dc_blocker_enable ? "on" : "off";
-  const currentHpEnable = audio?.hp_enable ? "on" : "off";
-  const currentHpCutoff = audio?.hp_cutoff_hz ?? "";
-  const currentAgc = audio?.agc_enable ? "on" : "off";
-  const currentLed = audio?.led_mode ?? 0;
-  const currentBuffer = audio?.buffer_size ?? 9600;
+    typeof d?.gain === "number" ? d.gain.toFixed(2) : "";
+  const currentDcBlocker = d?.dc_blocker_enable ? "on" : "off";
+  const currentHpEnable = d?.hp_enable ? "on" : "off";
+  const currentHpCutoff = d?.hp_cutoff_hz ?? "";
+  const currentAgc = d?.agc_enable ? "on" : "off";
+  const currentLed = d?.led_mode ?? 0;
+  const currentBuffer = d?.buffer_size ?? 9600;
 
   const agcInfo =
-    audio?.agc_enable && typeof audio?.agc_multiplier === "number"
+    d?.agc_enable && typeof d?.agc_multiplier === "number"
       ? t("audio.agc_info", {
-          multiplier: audio.agc_multiplier.toFixed(1),
-          effective: Number(audio.effective_gain || 0).toFixed(1),
+          multiplier: d.agc_multiplier.toFixed(1),
+          effective: Number(d.effective_gain || 0).toFixed(1),
         })
       : "";
 
@@ -1467,19 +1429,19 @@ function AudioCard() {
         <div class="summary-tile">
           <span class="summary-label">${t("audio.latency")}</span>
           <span class="summary-value">
-            ${audio ? `${formatNumber(audio.latency_ms, 1)} ms` : t("common.loading")}
+            ${d ? `${formatNumber(d.latency_ms, 1)} ms` : t("common.loading")}
           </span>
         </div>
         <div class="summary-tile">
           <span class="summary-label">${t("audio.profile")}</span>
           <span class="summary-value">
-            ${audio ? profileLabel(audio.buffer_size) : t("common.loading")}
+            ${d ? profileLabel(d.buffer_size) : t("common.loading")}
           </span>
         </div>
         <div class="summary-tile">
           <span class="summary-label">${t("audio.signal_level")}</span>
           <div class="summary-value" style="font-size: 1.6rem;">
-            ${formatLevel(audio)}
+            ${formatLevel(d)}
           </div>
         </div>
       </div>
@@ -1488,12 +1450,12 @@ function AudioCard() {
 }
 
 function ReliabilityCard() {
-  const perf = state.perf;
-  const autoRecovery = perf?.auto_recovery ? "on" : "off";
-  const thresholdMode = perf?.auto_threshold ? "auto" : "manual";
-  const restartThreshold = perf?.restart_threshold_pkt_s ?? "";
-  const scheduledReset = perf?.scheduled_reset ? "on" : "off";
-  const resetHours = perf?.reset_hours ?? "";
+  const d = state.data;
+  const autoRecovery = d?.auto_recovery ? "on" : "off";
+  const thresholdMode = d?.auto_threshold ? "auto" : "manual";
+  const restartThreshold = d?.restart_threshold_pkt_s ?? "";
+  const scheduledReset = d?.scheduled_reset ? "on" : "off";
+  const resetHours = d?.reset_hours ?? "";
 
   return html`
     <section class="card">
@@ -1513,9 +1475,9 @@ function ReliabilityCard() {
         <${SettingRow}
           label=${t("reliability.threshold_mode")}
           helpKey="reliability.help.threshold_mode"
-          note=${perf
+          note=${d
             ? t("reliability.recommended_threshold", {
-                value: String(perf.recommended_min_rate),
+                value: String(d.recommended_min_rate),
               })
             : ""}
           controls=${html`
@@ -1529,7 +1491,7 @@ function ReliabilityCard() {
             />
           `}
         />
-        ${perf?.auto_threshold
+        ${d?.auto_threshold
           ? null
           : html`
               <${SettingRow}
@@ -1582,10 +1544,10 @@ function ReliabilityCard() {
 }
 
 function ThermalCard() {
-  const thermal = state.thermal;
-  const enableValue = thermal?.protection_enabled ? "on" : "off";
-  const limitValue = thermal?.shutdown_c ?? 80;
-  const showLatch = !!thermal?.latched_persist;
+  const d = state.data;
+  const enableValue = d?.protection_enabled ? "on" : "off";
+  const limitValue = d?.shutdown_c ?? 80;
+  const showLatch = !!d?.latched_persist;
 
   return html`
     <section class="card">
@@ -1620,17 +1582,17 @@ function ThermalCard() {
       <div style="margin-top: 1.6rem;">
         <${DataTable}
           rows=${[
-            [t("thermal.status"), formatThermalStatus(thermal)],
+            [t("thermal.status"), formatThermalStatus(d)],
             [
               t("thermal.current"),
-              thermal?.current_valid ? formatTemperature(thermal.current_c) : t("common.na"),
+              d?.current_valid ? formatTemperature(d.current_c) : t("common.na"),
             ],
-            [t("thermal.peak"), formatTemperature(thermal?.max_c)],
+            [t("thermal.peak"), formatTemperature(d?.max_c)],
             [
               t("thermal.cpu"),
-              thermal ? `${thermal.cpu_mhz} MHz` : t("common.loading"),
+              d ? `${d.cpu_mhz} MHz` : t("common.loading"),
             ],
-            [t("thermal.last"), formatThermalLast(thermal)],
+            [t("thermal.last"), formatThermalLast(d)],
           ]}
         />
       </div>
@@ -1650,13 +1612,11 @@ function ThermalCard() {
 }
 
 function AdvancedCard() {
-  const perf = state.perf;
-  const status = state.status;
-  const thermal = state.thermal;
-  const checkInterval = perf?.check_interval_min ?? "";
-  const wifiTx = status?.wifi_tx_dbm ?? -1.0;
-  const hostname = status?.mdns_hostname ?? "";
-  const cpuFreq = thermal?.cpu_mhz ?? 120;
+  const d = state.data;
+  const checkInterval = d?.check_interval_min ?? "";
+  const wifiTx = d?.wifi_tx_dbm ?? -1.0;
+  const hostname = d?.mdns_hostname ?? "";
+  const cpuFreq = d?.cpu_mhz ?? 120;
 
   return html`
     <section class="card">
@@ -1735,12 +1695,12 @@ function LogsCard() {
       <p class="card-intro">${t("logs.help")}</p>
       <div class="logs-panel">
         <div class="logs-actions">
-          <span class="small-note mono">/api/logs</span>
+          <span class="small-note mono">/api/state</span>
           <button class="button button-outline" onClick=${copyLogs}>
             ${t(state.copyLabelKey)}
           </button>
         </div>
-        <pre class="logs-frame mono">${state.logs || ""}</pre>
+        <pre class="logs-frame mono">${state.data?.logs?.join("\n") ?? ""}</pre>
       </div>
     </section>
   `;
