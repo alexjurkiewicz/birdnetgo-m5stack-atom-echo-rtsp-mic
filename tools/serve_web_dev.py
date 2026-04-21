@@ -106,7 +106,6 @@ class FakeDeviceState:
         self.offline_until = time.monotonic() + seconds
         self.boot_at = self.offline_until
 
-    def recompute_threshold_locked(self) -> None:
     def effective_gain_locked(self) -> float:
         return self.gain * (self.agc_multiplier if self.agc_enable else 1.0)
 
