@@ -119,7 +119,8 @@ class FakeDeviceState:
 
     def recommended_min_rate_locked(self) -> int:
         expected = self.expected_rate_locked()
-        return int(clamp(round(expected * 0.7), 5, 200))
+        rec = int(expected * 0.5 + 0.5)  # 50% safety margin
+        return max(5, rec)
 
     def effective_gain_locked(self) -> float:
         return self.gain * (self.agc_multiplier if self.agc_enable else 1.0)
@@ -230,10 +231,11 @@ class FakeDeviceState:
             "led_mode": self.led_mode,
             # Perf fields
             "restart_threshold_pkt_s": self.restart_threshold_pkt_s,
+            "expected_pkt_rate": int(round(self.expected_rate_locked())),
+            "recommended_min_rate": self.recommended_min_rate_locked(),
             "check_interval_min": self.check_interval_min,
             "auto_recovery": self.auto_recovery,
             "auto_threshold": self.auto_threshold,
-            "recommended_min_rate": self.recommended_min_rate_locked(),
             "scheduled_reset": self.scheduled_reset,
             "reset_hours": self.reset_hours,
             # Thermal fields

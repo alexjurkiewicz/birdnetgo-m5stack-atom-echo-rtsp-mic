@@ -269,6 +269,10 @@ const I18N_CONFIG = {
       en: "Recommended threshold: {value} pkt/s",
       cs: "Doporučený práh: {value} pkt/s",
     },
+    "reliability.expected_pkt_rate": {
+      en: "Your expected packet rate: {value} pkt/s",
+      cs: "Očekávaná rychlost paketů: {value} pkt/s",
+    },
     "thermal.overheat_protection": {
       en: "Overheat Protection",
       cs: "Ochrana proti přehřátí",
@@ -1334,7 +1338,7 @@ function BufferSizeSettingControl({ bufferValue, sampleRate }) {
   `;
 }
 
-function AutoRecoverySettingControl({ autoRecoveryValue, thresholdModeValue, restartThresholdValue, recommendedRate }) {
+function AutoRecoverySettingControl({ autoRecoveryValue, thresholdModeValue, restartThresholdValue, expectedPktRate, recommendedRate }) {
   const [autoRecovery, setAutoRecovery, autoRecoveryChanged] = useLocalSettingValue(autoRecoveryValue);
   const [thresholdMode, setThresholdMode, thresholdModeChanged] = useLocalSettingValue(thresholdModeValue);
   const [restartThreshold, setRestartThreshold, restartThresholdChanged] = useLocalSettingValue(restartThresholdValue);
@@ -1408,6 +1412,11 @@ function AutoRecoverySettingControl({ autoRecoveryValue, thresholdModeValue, res
       <div class=${`linked-controls ${autoRecoveryEnabled ? "" : "linked-controls-disabled"}`.trim()}>
         <span class="field-subtitle">${t("reliability.threshold_mode")}</span>
         <p class="setting-help">${t("reliability.help.threshold_mode")}</p>
+        ${expectedPktRate
+          ? html`<p class="setting-help">${t("reliability.expected_pkt_rate", {
+              value: String(expectedPktRate),
+            })}</p>`
+          : null}
         ${recommendedRate
           ? html`<p class="setting-help">${t("reliability.recommended_threshold", {
               value: String(recommendedRate),
@@ -1755,6 +1764,7 @@ function ReliabilityCard() {
               autoRecoveryValue=${autoRecovery}
               thresholdModeValue=${thresholdMode}
               restartThresholdValue=${restartThreshold}
+              expectedPktRate=${d?.expected_pkt_rate}
               recommendedRate=${d?.recommended_min_rate}
             />
           `}

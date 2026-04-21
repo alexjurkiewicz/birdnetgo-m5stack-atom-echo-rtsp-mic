@@ -599,11 +599,17 @@ void scheduleReboot(bool factoryReset, uint32_t delayMs) {
     scheduledRebootAt = millis() + delayMs;
 }
 
-// Compute recommended minimum packet-rate threshold based on current sample rate and buffer size
-uint32_t computeRecommendedMinRate() {
+// Compute expected packet rate based on current sample rate and buffer size
+uint32_t computeExpectedPktRate() {
     uint32_t buf = max((uint16_t)1, currentBufferSize);
     float expectedPktPerSec = (float)currentSampleRate / (float)buf;
-    uint32_t rec = (uint32_t)(expectedPktPerSec * 0.5f + 0.5f); // 50% safety margin
+    return (uint32_t)(expectedPktPerSec + 0.5f); // round to nearest
+}
+
+// Compute recommended minimum packet-rate threshold based on current sample rate and buffer size
+uint32_t computeRecommendedMinRate() {
+    uint32_t expected = computeExpectedPktRate();
+    uint32_t rec = (uint32_t)(expected * 0.5f + 0.5f); // 50% safety margin
     if (rec < 5) rec = 5;
     return rec;
 }

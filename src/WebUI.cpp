@@ -37,6 +37,7 @@ extern uint8_t cpuFrequencyMhz;
 extern wifi_power_t currentWifiPowerLevel;
 extern void resetToDefaultSettings();
 extern bool autoThresholdEnabled;
+extern uint32_t computeExpectedPktRate();
 extern uint32_t computeRecommendedMinRate();
 extern bool scheduledResetEnabled;
 extern uint32_t resetIntervalHours;
@@ -181,10 +182,11 @@ static void httpState() {
     doc["clip_count"]              = audioClipCount;
     doc["led_mode"]                = ledMode;
     doc["restart_threshold_pkt_s"] = minAcceptableRate;
+    doc["expected_pkt_rate"]       = computeExpectedPktRate();
+    doc["recommended_min_rate"]    = computeRecommendedMinRate();
     doc["check_interval_min"]      = performanceCheckInterval;
     doc["auto_recovery"]           = autoRecoveryEnabled;
     doc["auto_threshold"]          = autoThresholdEnabled;
-    doc["recommended_min_rate"]    = computeRecommendedMinRate();
     doc["scheduled_reset"]         = scheduledResetEnabled;
     doc["reset_hours"]             = resetIntervalHours;
     if (lastTemperatureValid) { doc["current_c"] = lastTemperatureC; } else { doc["current_c"] = nullptr; }
