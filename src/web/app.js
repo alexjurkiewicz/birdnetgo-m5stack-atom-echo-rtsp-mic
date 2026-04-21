@@ -238,16 +238,16 @@ const I18N_CONFIG = {
       cs: "Po kolika hodinách",
     },
     "reliability.help.auto_recovery": {
-      en: "Restarts the audio pipeline when packet rate collapses.",
-      cs: "Restartuje audio pipeline při kolapsu rychlosti paketů.",
+      en: "Restarts the audio pipeline when packet rate drops below the threshold for sustained period.",
+      cs: "Restartuje audio pipeline, když rychlost paketů klesne pod práh po dobu.",
     },
     "reliability.help.threshold_mode": {
-      en: "Auto computes the threshold from sample rate and buffer size. Manual exposes the exact packet-rate floor.",
-      cs: "Auto počítá práh ze vzorkovací frekvence a bufferu. Manuální režim vystaví přesnou mez paketové rychlosti.",
+      en: "Auto: threshold is 50% of expected rate (conservative, for unstable networks). Manual: set your own floor.",
+      cs: "Auto: práh je 50% očekávané rychlosti (konzervativní, pro nestabilní sítě). Manuální: nastavte vlastní limit.",
     },
     "reliability.help.restart_threshold": {
-      en: "Used only in manual mode. Valid range is 5 to 200 packets per second.",
-      cs: "Používá se jen v manuálním režimu. Platný rozsah je 5 až 200 paketů za sekundu.",
+      en: "Packet rate floor (pkt/s) - if rate drops below this for a sustained period, the pipeline restarts. Valid range is 5 to 200 pkt/s. Your expected rate may be higher than the recommended conservative value.",
+      cs: "Limit rychlosti paketů (pkt/s) - pokud rychlost klesne pod tuto hodnotu po dobu, pipeline se restartuje. Platný rozsah je 5 až 200 pkt/s. Vaše očekávaná rychlost může být vyšší než doporučená konzervativní hodnota.",
     },
     "reliability.help.scheduled_reset": {
       en: "Optional periodic reboot for problematic networks.",
